@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Girlfriend</title>
+  </head>
+  <body>
+    <div id="stage"></div>
+
+    <header class="top">
+      <div class="name"><span id="dot" class="dot"></span><span id="charName">小雪</span></div>
+      <div id="status" class="status">点击「开始聊天」，允许麦克风后直接说话</div>
+    </header>
+
+    <ul id="log" class="log"></ul>
+
+    <footer class="controls">
+      <button id="connect" class="primary">开始聊天</button>
+      <button id="mute" disabled title="麦克风开关">🎤</button>
+      <form id="textForm">
+        <input id="textInput" placeholder="也可以打字…" autocomplete="off" disabled />
+      </form>
+      <button id="debugToggle" title="表情 / 手势测试">🎭</button>
+    </footer>
+
+    <aside id="debug" class="debug" hidden>
+      <h3>表情</h3>
+      <div id="emotionButtons" class="chips"></div>
+      <h3>手势</h3>
+      <div id="gestureButtons" class="chips"></div>
+      <h3>导演标注</h3>
+      <div id="cue" class="cue">—</div>
+      <p class="hint">把 .vrm 文件拖进页面可以换模型</p>
+    </aside>
+
+    <div id="drop" class="drop" hidden>松开以加载 VRM 模型</div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
