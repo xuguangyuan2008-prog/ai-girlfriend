@@ -54,6 +54,8 @@ export class RealtimeClient {
       pc.ontrack = (e) => {
         // Chrome 需要把远端流挂到 <audio> 上，WebAudio 才能分析到声音
         this.audioEl.srcObject = e.streams[0]
+        // iOS Safari 不一定理会 autoplay；录音授权后允许手动播放
+        this.audioEl.play().catch(() => {})
         this.remoteStream = e.streams[0]
         resolve(e.streams[0])
       }

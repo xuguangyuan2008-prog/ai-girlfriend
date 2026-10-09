@@ -28,6 +28,34 @@ npm start              # 默认端口 3000，可用 PORT 修改
 
 > 浏览器只有在 HTTPS 或 localhost 下才允许使用麦克风，部署时记得配置 HTTPS。
 
+## 在手机上测试
+
+手机通过 `http://电脑IP` 访问时浏览器会禁用麦克风，所以需要 HTTPS。三种方式任选其一：
+
+**方式一：局域网 HTTPS（最快）**——手机和电脑连同一个 Wi-Fi
+
+```bash
+npm run dev:phone      # 终端里会打印 Network: https://192.168.x.x:5173
+```
+
+手机浏览器打开这个地址，会提示「证书不受信任」（自签名证书，正常现象）：
+- Android Chrome：点「高级」→「继续前往」
+- iPhone Safari：点「显示详细信息」→「访问此网站」
+
+**方式二：内网穿透（不用同一 Wi-Fi，没有证书警告）**
+
+```bash
+npm run dev
+npx cloudflared tunnel --url http://localhost:5173   # 打印 https://xxx.trycloudflare.com
+```
+
+**方式三：部署上线**——Render、Railway、Fly.io 等平台都会自动配 HTTPS。构建命令 `npm install && npm run build`，启动命令 `npm start`，环境变量里配置 `OPENAI_API_KEY`。
+
+注意：
+- 语音是**手机浏览器直接连 OpenAI**（WebRTC），所以手机所在的网络必须能访问 `api.openai.com`，而且 OpenAI 不支持的地区连不上
+- 外放时如果角色被自己的声音打断，戴耳机效果最好
+- 第一次加载要下载约 10MB 的模型
+
 ## 工作原理
 
 ```

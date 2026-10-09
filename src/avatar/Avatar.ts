@@ -131,12 +131,14 @@ export class Avatar {
     this.renderer.setSize(w, h, false)
     this.camera.aspect = w / h
 
-    // 半身取景：头顶到腰部，宽度至少容纳挥手
+    // 半身取景：至少露出头顶到腰部、肩宽；画面上沿固定在头顶上方一点
+    // 手机竖屏时宽度是瓶颈，多出来的高度往下延伸（下方有字幕和按钮）
     const frameHeight = 0.85
-    const frameWidth = 0.95
+    const frameWidth = 0.55
     const tanHalf = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))
     const dist = Math.max(frameHeight / 2 / tanHalf, frameWidth / 2 / (tanHalf * this.camera.aspect))
-    const centerY = this.headHeight - 0.17
+    const visibleHeight = 2 * dist * tanHalf
+    const centerY = this.headHeight + 0.3 - visibleHeight / 2
     this.camera.position.set(0, centerY + 0.04, dist)
     this.camera.lookAt(0, centerY, 0)
     this.camera.updateProjectionMatrix()
