@@ -20,12 +20,12 @@ export class LipSync {
   private level = 0
   private shape: Visemes = { ...SILENT }
 
-  constructor(ctx: AudioContext, stream: MediaStream) {
+  /** source 是角色声音所在的音频节点；只分析，不改变播放 */
+  constructor(ctx: BaseAudioContext, source: AudioNode) {
     this.analyser = ctx.createAnalyser()
     this.analyser.fftSize = 1024
     this.analyser.smoothingTimeConstant = 0.5
-    // 只分析，不接到 destination；声音由 <audio> 元素播放
-    ctx.createMediaStreamSource(stream).connect(this.analyser)
+    source.connect(this.analyser)
     this.time = new Float32Array(this.analyser.fftSize)
     this.freq = new Float32Array(this.analyser.frequencyBinCount)
     this.binHz = ctx.sampleRate / this.analyser.fftSize

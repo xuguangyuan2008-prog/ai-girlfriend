@@ -134,7 +134,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
   height: 48px;
   border-radius: 24px;
@@ -150,8 +151,14 @@ button {
   min-width: 48px;
 }
 
+select {
+  padding: 0 10px;
+  flex: none;
+}
+
 button:disabled,
-input:disabled {
+input:disabled,
+select:disabled {
   opacity: 0.5;
   cursor: default;
 }

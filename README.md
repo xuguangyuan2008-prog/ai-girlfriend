@@ -2,7 +2,7 @@
 
 浏览器里运行的半身 3D 虚拟角色，可以和她实时语音聊天。她会根据说话内容变换表情、做简单手势，嘴型跟着声音同步。
 
-- **实时语音**：OpenAI Realtime API（WebRTC），低延迟，随时可以插话打断
+- **实时语音**：支持 **OpenAI Realtime**（WebRTC）和**豆包端到端实时语音大模型**（WebSocket），低延迟，随时可以插话打断
 - **角色渲染**：three.js + [@pixiv/three-vrm](https://github.com/pixiv/three-vrm)，支持任意 VRM 模型（可以用 VRoid Studio 免费捏人）
 - **表情**：happy / sad / angry / surprised / relaxed / shy，平滑过渡
 - **手势**：挥手、点头、摇头、歪头、耸肩、思考、害羞、欢呼，全部程序化生成，不需要动画文件
@@ -13,11 +13,11 @@
 
 ```bash
 npm install
-cp .env.example .env   # 填入 OPENAI_API_KEY
+cp .env.example .env   # 填入 OpenAI 或豆包的密钥（至少一个）
 npm run dev            # 打开 http://localhost:5173
 ```
 
-点击「开始聊天」并允许麦克风，然后直接说话。右下角 🎭 按钮可以手动测试表情和手势，不连 API 也能用。
+点击「开始聊天」并允许麦克风，然后直接说话。两家都配置了的话，按钮左边会出现下拉框可以切换。右下角 🎭 按钮可以手动测试表情和手势，不连 API 也能用。
 
 部署到生产环境：
 
@@ -49,48 +49,63 @@ npm run dev
 npx cloudflared tunnel --url http://localhost:5173   # 打印 https://xxx.trycloudflare.com
 ```
 
-**方式三：部署上线**——Render、Railway、Fly.io 等平台都会自动配 HTTPS。构建命令 `npm install && npm run build`，启动命令 `npm start`，环境变量里配置 `OPENAI_API_KEY`。
+**方式三：部署上线**——Render、Railway、Fly.io 等平台都会自动配 HTTPS。构建命令 `npm install && npm run build`，启动命令 `npm start`，环境变量里填 `.env.example` 中的密钥。
 
 注意：
-- 语音是**手机浏览器直接连 OpenAI**（WebRTC），所以手机所在的网络必须能访问 `api.openai.com`，而且 OpenAI 不支持的地区连不上
+- 用 OpenAI 时是**手机浏览器直接连 OpenAI**（WebRTC），手机所在的网络必须能访问 `api.openai.com`，OpenAI 不支持的地区连不上；用豆包时手机只连你的服务器，由服务器转发
 - 外放时如果角色被自己的声音打断，戴耳机效果最好
 - 第一次加载要下载约 10MB 的模型
 
 ## 工作原理
 
+两家服务的接入方式完全不同，都被翻译成同一套事件（`src/voice/types.ts`），表情导演和界面不关心底层是谁。
+
 ```
-           ┌──────── 你的服务器 ────────┐
-浏览器 ──► │ POST /api/session          │ ──► OpenAI：用 API Key 换短时效 client secret
-           └────────────────────────────┘
-浏览器 ◄══ WebRTC 音频 + DataChannel 事件 ══► OpenAI Realtime（gpt-realtime-2.1）
-   │
-   ├─ 远端音频 ──► <audio> 播放
-   │           └─► AnalyserNode ──► 口型
-   ├─ speech_started / stopped ──► 倾听 / 思考姿态
-   └─ 角色台词文字流 ──► 按句切分 ──► 带外响应（conversation: "none"）
-                                      让模型给每句标注 {emotion, gesture}
-                                      ──► 按估算的朗读时间点触发表情和手势
+OpenAI：
+  浏览器 ──► 你的服务器 POST /api/session ──► 用 API Key 换短时效 client secret
+  浏览器 ◄══ WebRTC 音频 + DataChannel 事件 ══► OpenAI Realtime（直连）
+
+豆包：
+  浏览器 ◄══ WebSocket /api/doubao ══► 你的服务器 ◄══ 二进制协议 ══► 豆包实时语音
+         16kHz PCM 上行 / 24kHz PCM 下行      （鉴权头只能由服务端添加）
+
+统一事件 ──► 表情导演 ──► 表情 / 手势 / 倾听·思考·说话姿态
+角色声音 ──► AnalyserNode ──► 口型
 ```
 
-**为什么用「带外响应」标注表情，而不是让模型在台词里写 `[happy]`？**
-语音模式下模型说出的每个字都会被念出来，标签也不例外。带外响应和主对话并行运行，不写入对话历史，也不会拖慢回复。
+**表情怎么来的？** 语音模式下模型说的每个字都会被念出来，不能让它在台词里写 `[happy]`。所以每句台词另外请求一次标注 `{emotion, gesture}`：
+
+| | OpenAI | 豆包 |
+|---|---|---|
+| 怎么标注 | 同一会话里的「带外响应」（`conversation: "none"`），并行运行、不写入对话历史 | 服务端 `/api/emotion` 调方舟等文本模型；没配置则用关键词规则 |
+| 什么时候触发 | 按字数估算每句话的开口时间 | 豆包推送每句话开始合成的事件，音频队列在我们手里，**能精确算出开口时刻** |
 
 ## 目录
 
 ```
 server/
   character.js        人设、声音（改这里换角色）
-  session.js          创建 Realtime 会话（模型、VAD、转写等配置）
+  api.js              /api/config、/api/session、/api/emotion
+  openai.js           创建 OpenAI Realtime 会话（模型、VAD、转写等配置）
+  doubao.js           豆包二进制协议编解码 + WebSocket 中转
+  emotion.js          文本模型标注表情
   index.js            生产环境服务器
+shared/
+  cues.js             表情 / 手势名单和导演提示词（前后端共用）
 src/
   main.ts             界面与各模块组装
   avatar/
     Avatar.ts         three.js 场景、VRM 加载、姿态/表情/眨眼/视线
     gestures.ts       程序化手势定义
     LipSync.ts        音频 → 口型
-    types.ts          情绪、手势列表
-  realtime/
-    RealtimeClient.ts WebRTC 连接
+    types.ts          表情权重、类型
+  voice/
+    types.ts          统一的语音会话接口和事件
+    OpenAIVoice.ts    OpenAI（WebRTC）
+    DoubaoVoice.ts    豆包（经服务端中转）
+    pcm.ts            麦克风采集降采样、PCM 排队播放
+    cues.ts           解析标注结果、关键词兜底规则
+  director/
     EmotionDirector.ts 台词 → 表情/手势 的导演
 public/models/avatar.vrm  默认模型
 ```
@@ -99,16 +114,20 @@ public/models/avatar.vrm  默认模型
 
 | 想改什么 | 怎么改 |
 |---|---|
-| 人设 / 说话风格 | `server/character.js` 的 `instructions` |
-| 声音 | `.env` 里的 `OPENAI_VOICE`（marin、cedar、coral、shimmer…） |
-| 模型 | `.env` 里的 `OPENAI_REALTIME_MODEL`，想更快更便宜可以用 `gpt-realtime-2.1-mini` |
+| 人设 / 说话风格 | `server/character.js` 的 `instructions`（豆包另有 `speakingStyle`） |
+| 声音 | `.env` 里的 `OPENAI_VOICE` 或 `DOUBAO_SPEAKER` |
+| 模型 | `.env` 里的 `OPENAI_REALTIME_MODEL` 或 `DOUBAO_MODEL` |
+| 默认语音服务 | `.env` 里的 `VOICE_PROVIDER` |
 | 角色形象 | 替换 `public/models/avatar.vrm`，设置 `VITE_VRM_URL`，或者直接把 .vrm 拖进页面 |
-| 加手势 | 在 `src/avatar/gestures.ts` 加定义，在 `types.ts` 的 `GESTURES` 里加名字，导演提示词会自动带上 |
+| 加手势 | 在 `shared/cues.js` 的 `GESTURES` 加名字（导演提示词会自动带上），再到 `src/avatar/gestures.ts` 实现动作 |
+| 接入别的语音服务 | 实现 `src/voice/types.ts` 的 `VoiceSession` 接口，在 `main.ts` 的 `PROVIDERS` 里注册 |
 | 表情强度 | `src/avatar/types.ts` 的 `EMOTIONS` |
 
 ## 已知限制 / 后续可以做
 
-- 表情时间点是按字数估算的（中文约 0.22 秒/字），长回复后半段可能有些偏差
+- OpenAI 的表情时间点是按字数估算的（中文约 0.22 秒/字），长回复后半段可能有些偏差
+- 豆包的协议实现依据官方 WebSocket 二进制协议编写，并用模拟服务器做了端到端测试，但尚未连真实账号验证；如果你的账号只开通了新版双工接口（Seeduplex），需要改用对应协议
+- 豆包模式下音频由网页自己播放，部分桌面浏览器的回声消除可能不如 WebRTC，外放出现自己打断自己时请戴耳机
 - 手势是程序化的，比较简单；想要更自然可以导入 VRMA / Mixamo 动画
 - 没有长期记忆，每次连接都是新对话；可以在服务端存储对话摘要，下次放进 instructions
 - 口型基于频谱的粗略估计，不是真正的音素对齐

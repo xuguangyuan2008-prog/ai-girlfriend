@@ -5,13 +5,14 @@ import express from 'express'
 
 if (existsSync('.env')) process.loadEnvFile('.env')
 
-const { sessionHandler } = await import('./session.js')
+const { apiMiddleware, attachDoubao } = await import('./api.js')
 
 const app = express()
 const dist = fileURLToPath(new URL('../dist', import.meta.url))
 
-app.post('/api/session', sessionHandler)
+app.use(apiMiddleware)
 app.use(express.static(dist))
 
 const port = Number(process.env.PORT) || 3000
-app.listen(port, () => console.log(`http://localhost:${port}`))
+const server = app.listen(port, () => console.log(`http://localhost:${port}`))
+attachDoubao(server, { rejectOthers: true })

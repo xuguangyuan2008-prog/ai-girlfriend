@@ -13,7 +13,8 @@
   "dependencies": {
     "@pixiv/three-vrm": "^3.5.5",
     "express": "^5.2.1",
-    "three": "^0.186.1"
+    "three": "^0.186.1",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

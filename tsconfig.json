@@ -10,6 +10,7 @@
     "noUnusedParameters": true,
     "isolatedModules": true,
     "skipLibCheck": true,
+    "allowJs": true,
     "noEmit": true
   },
   "include": ["src", "vite.config.ts"]

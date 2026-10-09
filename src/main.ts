@@ -2,8 +2,10 @@ import './style.css'
 import { Avatar } from './avatar/Avatar'
 import { LipSync } from './avatar/LipSync'
 import { EMOTIONS, GESTURES, type Emotion } from './avatar/types'
-import { EmotionDirector } from './realtime/EmotionDirector'
-import { RealtimeClient } from './realtime/RealtimeClient'
+import { EmotionDirector } from './director/EmotionDirector'
+import { DoubaoVoice } from './voice/DoubaoVoice'
+import { OpenAIVoice } from './voice/OpenAIVoice'
+import type { VoiceSession } from './voice/types'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
@@ -13,6 +15,7 @@ const ui = {
   charName: $('charName'),
   status: $('status'),
   log: $<HTMLUListElement>('log'),
+  provider: $<HTMLSelectElement>('provider'),
   connect: $<HTMLButtonElement>('connect'),
   mute: $<HTMLButtonElement>('mute'),
   textForm: $<HTMLFormElement>('textForm'),
@@ -36,37 +39,60 @@ avatar.load(MODEL_URL).catch((err) => {
   setStatus(`模型加载失败：${err.message}。可以把 .vrm 文件拖进页面`)
 })
 
+// ---------- 语音服务 ----------
+const PROVIDERS: Record<string, { label: string; create: () => VoiceSession }> = {
+  openai: { label: 'OpenAI', create: () => new OpenAIVoice() },
+  doubao: { label: '豆包', create: () => new DoubaoVoice() },
+}
+
+fetch('/api/config')
+  .then((r) => r.json())
+  .then((config: { characterName: string; providers: string[]; defaultProvider: string | null }) => {
+    ui.charName.textContent = config.characterName
+    if (!config.providers.length) {
+      setStatus('服务端还没有配置任何语音服务，请参考 README 填写 .env')
+      ui.connect.disabled = true
+      return
+    }
+    for (const id of config.providers) ui.provider.add(new Option(PROVIDERS[id]?.label ?? id, id))
+    ui.provider.value = config.defaultProvider ?? config.providers[0]
+    showProviderPicker = config.providers.length > 1
+    ui.provider.hidden = !showProviderPicker
+  })
+  .catch(() => setStatus('无法连接服务器'))
+
 // ---------- 实时对话 ----------
-const client = new RealtimeClient()
-const director = new EmotionDirector(client, avatar)
-let connected = false
+/** 配置了多个语音服务时，未连接状态下显示下拉框供选择 */
+let showProviderPicker = false
+let voice: VoiceSession | null = null
 let micOn = true
 let audioCtx: AudioContext | null = null
 
-director.onCue = (cue) => {
-  ui.cue.textContent = `${cue.emotion} / ${cue.gesture}\n「${cue.text}」`
-}
-
 ui.connect.onclick = async () => {
-  if (connected) return hangUp()
+  if (voice) return hangUp()
   ui.connect.disabled = true
+  ui.provider.hidden = true
   setStatus('连接中…')
   // AudioContext 必须在用户点击时创建，否则浏览器会静音
   audioCtx ??= new AudioContext()
   await audioCtx.resume()
+
+  const session = PROVIDERS[ui.provider.value].create()
+  voice = session
+  wire(session)
   try {
-    const session = await client.connect()
-    const lipSync = new LipSync(audioCtx, client.remoteStream!)
-    avatar.setVisemeSource((dt) => lipSync.update(dt))
-    connected = true
-    ui.charName.textContent = session.characterName
+    await session.connect(audioCtx)
+    if (session.voiceNode) {
+      const lipSync = new LipSync(audioCtx, session.voiceNode)
+      avatar.setVisemeSource((dt) => lipSync.update(dt))
+    }
     ui.dot.classList.add('live')
     ui.connect.textContent = '挂断'
     ui.mute.disabled = ui.textInput.disabled = false
     setStatus(`已连接 · ${session.model} · 直接说话就行，随时可以打断她`)
   } catch (err) {
     console.error(err)
-    client.disconnect()
+    hangUp()
     setStatus(`连接失败：${(err as Error).message}`)
   } finally {
     ui.connect.disabled = false
@@ -74,13 +100,14 @@ ui.connect.onclick = async () => {
 }
 
 function hangUp() {
-  client.disconnect()
+  voice?.disconnect()
+  voice = null
   avatar.setVisemeSource(null)
   avatar.setMode('idle')
-  connected = false
   micOn = true
   ui.dot.classList.remove('live')
   ui.connect.textContent = '开始聊天'
+  ui.provider.hidden = !showProviderPicker
   ui.mute.disabled = ui.textInput.disabled = true
   ui.mute.classList.remove('off')
   setStatus('已挂断')
@@ -88,24 +115,40 @@ function hangUp() {
 
 ui.mute.onclick = () => {
   micOn = !micOn
-  client.setMicEnabled(micOn)
+  voice?.setMicEnabled(micOn)
   ui.mute.classList.toggle('off', !micOn)
 }
 
 ui.textForm.onsubmit = (e) => {
   e.preventDefault()
   const text = ui.textInput.value.trim()
-  if (!text || !connected) return
-  client.sendText(text)
+  if (!text || !voice) return
+  voice.sendText(text)
   addLog('user', text)
   ui.textInput.value = ''
 }
 
-client.on('client.disconnected', () => connected && hangUp())
-client.on('error', (e) => {
-  console.error('Realtime error', e.error)
-  setStatus(`出错了：${e.error?.message ?? '未知错误'}`)
-})
+/** 每次连接都是新的会话对象，在这里挂上导演、字幕和错误处理 */
+function wire(session: VoiceSession) {
+  const director = new EmotionDirector(session, avatar)
+  director.onCue = (cue) => {
+    ui.cue.textContent = `${cue.emotion} / ${cue.gesture}\n「${cue.text}」`
+  }
+
+  session.on('disconnected', () => voice === session && hangUp())
+  session.on('error', (e) => setStatus(`出错了：${e.message}`))
+
+  const assistantLines = new Map<string, HTMLLIElement>()
+  session.on('assistant.text_delta', (e) => {
+    let li = assistantLines.get(e.id)
+    if (!li) {
+      li = addLog('assistant', '')
+      assistantLines.set(e.id, li)
+    }
+    li.textContent += e.delta
+  })
+  session.on('user.transcript', (e) => addLog('user', e.text))
+}
 
 // ---------- 字幕 ----------
 const MAX_LOG = 4
@@ -120,19 +163,6 @@ function addLog(role: 'user' | 'assistant', text: string) {
   })
   return li
 }
-
-const assistantLines = new Map<string, HTMLLIElement>()
-client.on('response.output_audio_transcript.delta', (e) => {
-  let li = assistantLines.get(e.response_id)
-  if (!li) {
-    li = addLog('assistant', '')
-    assistantLines.set(e.response_id, li)
-  }
-  li.textContent += e.delta
-})
-client.on('conversation.item.input_audio_transcription.completed', (e) => {
-  if (e.transcript?.trim()) addLog('user', e.transcript.trim())
-})
 
 // ---------- 调试面板 ----------
 ui.debugToggle.onclick = () => (ui.debug.hidden = !ui.debug.hidden)
