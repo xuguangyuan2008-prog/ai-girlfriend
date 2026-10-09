@@ -44,7 +44,7 @@ body {
 /* 回复视频叠在待机视频上，淡入淡出切换 */
 .reply {
   opacity: 0;
-  transition: opacity 0.18s ease;
+  transition: opacity 0.35s ease; /* fast 模式没有首尾帧对齐，淡入淡出稍长一点盖住画面差异 */
 }
 
 .reply.on {

@@ -16,12 +16,24 @@ export const videoConfig = {
     return env.H3_API_KEY || ''
   },
 
+  /**
+   * fast：社区蒸馏的 FastH3（4 次前向 + 稀疏注意力，约快 14 倍）。只支持文生视频，
+   *       不能传参考图 / 声音 / 首尾帧，长相和声音靠固定的文字描述 + 固定种子维持。
+   * ref： 基础版 H3 的 ref2va，参考图 + 声音样本 + 首尾帧钉住定妆照，一致性最好，但没有蒸馏、慢很多。
+   * 要和 GPU 上启动的模型对应（gpu/serve.sh 的 MODE）。
+   */
+  get mode() {
+    return env.H3_MODE === 'ref' ? 'ref' : 'fast'
+  },
+
   // ---- 生成参数：决定速度的主要旋钮 ----
   get steps() {
-    return num(env.H3_STEPS, 8) // 配合加速 LoRA；不用 LoRA 时建议 20~30
+    // FastH3 固定 5 个 sigma 点（4 次前向），改了会被服务端拒绝
+    if (this.mode === 'fast') return 5
+    return num(env.H3_STEPS, 30)
   },
   get shortEdge() {
-    return num(env.H3_SHORT_EDGE, 480)
+    return num(env.H3_SHORT_EDGE, 768) // 768 是官方验证过的；480 约快 2 倍以上，画质需实测
   },
   get aspectRatio() {
     return env.H3_ASPECT_RATIO || '9:16'
@@ -30,9 +42,9 @@ export const videoConfig = {
   get seed() {
     return num(env.H3_SEED, 42)
   },
-  /** 'high' 会启用 Cache-DiT 跳步（步数少时收益有限）；不填就是无损 */
+  /** 'high' 会启用 Cache-DiT 跳步，只适用于 ref 模式（FastH3 不支持） */
   get quality() {
-    return env.H3_QUALITY || undefined
+    return this.mode === 'ref' ? env.H3_QUALITY || undefined : undefined
   },
   /**
    * 时长分档（秒）。torch.compile 按张量形状编译，固定几档可以在启动时预热、请求时复用，
@@ -46,7 +58,7 @@ export const videoConfig = {
     return num(env.H3_CONCURRENCY, 1)
   },
 
-  // ---- 固定场景素材：GPU 服务器上的路径（或 data:/http(s): URI） ----
+  // ---- 固定场景素材（仅 ref 模式）：GPU 服务器上的路径（或 data:/http(s): URI） ----
   get assets() {
     const dir = env.H3_ASSET_DIR || '/workspace/assets'
     return {

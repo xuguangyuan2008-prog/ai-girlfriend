@@ -4,7 +4,10 @@
 //   npm run h3 -- idle [--seconds 6]             生成待机循环视频 → public/video/idle.mp4
 //   npm run h3 -- warmup                          按每个时长档发一次请求，触发 torch.compile
 //   npm run h3 -- say "你好呀，今天过得怎么样？" [--emotion happy] [--action 挥挥手]
-//   npm run h3 -- bench [--durations 4,6,8] [--steps 8,16] [--repeat 2]
+//   npm run h3 -- consistency                    同一种子、不同台词生成 4 段，拼成对比图，看长相/场景会不会漂
+//   npm run h3 -- bench [--durations 4,6,8] [--edges 768,480] [--steps 20,30] [--repeat 2]
+//   （--steps 只对 ref 模式有效，FastH3 固定 5 个 sigma 点）
+import { execFileSync } from 'node:child_process'
 import { copyFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname } from 'node:path'
@@ -25,6 +28,7 @@ const { values, positionals } = parseArgs({
     action: { type: 'string' },
     durations: { type: 'string' },
     steps: { type: 'string' },
+    edges: { type: 'string' },
     repeat: { type: 'string' },
   },
 })
@@ -81,19 +85,48 @@ switch (command) {
     break
   }
 
+  case 'consistency': {
+    const tests = [
+      { line: '哈哈，真的假的？快跟我说说！', emotion: 'surprised' },
+      { line: '嗯…其实我今天也有点想你。', emotion: 'shy' },
+      { line: '你又熬夜了是不是？快去睡觉！', emotion: 'pouty' },
+      { line: '没事的，有我陪着你呢。', emotion: 'tender' },
+    ]
+    const files = []
+    for (const t of tests) {
+      const r = await clip(`「${t.line}」`, { prompt: h3Prompt({ ...t, action: '' }), durationSeconds: pickDuration(t.line) })
+      files.push(r.file)
+    }
+    // 每段取第 2 秒的画面，横向拼成一张图（需要本机有 ffmpeg）
+    try {
+      const out = `${videoConfig.mediaDir}/consistency.png`
+      const inputs = files.flatMap((f) => ['-ss', '2', '-i', f])
+      const filter = files.map((_, i) => `[${i}:v]scale=-2:640,select=eq(n\\,0)[v${i}]`).join(';') +
+        `;${files.map((_, i) => `[v${i}]`).join('')}hstack=inputs=${files.length}`
+      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...inputs, '-filter_complex', filter, '-frames:v', '1', out])
+      console.log(`对比图：${out}（同时听一下这 4 段的声音是不是同一个人）`)
+    } catch {
+      console.log('没有 ffmpeg，跳过拼图；直接打开上面 4 个视频对比')
+    }
+    break
+  }
+
   case 'bench': {
     const durations = (values.durations || '4,6,8').split(',').map(Number)
-    const stepsList = (values.steps || String(videoConfig.steps)).split(',').map(Number)
+    const edges = (values.edges || String(videoConfig.shortEdge)).split(',').map(Number)
+    const stepsList = videoConfig.mode === 'fast' ? [5] : (values.steps || String(videoConfig.steps)).split(',').map(Number)
     const repeat = Number(values.repeat) || 2
     const rows = []
+    for (const edge of edges)
     for (const steps of stepsList) {
       process.env.H3_STEPS = String(steps)
+      process.env.H3_SHORT_EDGE = String(edge)
       for (const d of durations) {
         const line = SAMPLE_LINES[d] ?? SAMPLE_LINES[6]
         const times = []
         for (let i = 0; i < repeat; i++) {
           // 第一次可能包含编译时间，单独列出
-          const r = await clip(`steps=${steps} ${d}s #${i + 1}`, {
+          const r = await clip(`${edge}p steps=${steps} ${d}s #${i + 1}`, {
             prompt: h3Prompt({ line, emotion: 'happy' }),
             durationSeconds: d,
             seed: 1000 + i,
@@ -102,16 +135,16 @@ switch (command) {
         }
         const warm = times.slice(1).length ? times.slice(1) : times
         const avg = warm.reduce((s, r) => s + r.totalSeconds, 0) / warm.length
-        rows.push({ steps, seconds: d, first: times[0].totalSeconds, avg, ratio: avg / d })
+        rows.push({ edge, steps, seconds: d, first: times[0].totalSeconds, avg, ratio: avg / d })
       }
     }
-    console.log('\n步数  时长   首次     稳定平均   等待/视频时长')
+    console.log('\n短边  步数  时长   首次     稳定平均   等待/视频时长')
     for (const r of rows) {
       console.log(
-        `${String(r.steps).padStart(4)}  ${String(r.seconds).padStart(3)}s  ${fmt(r.first).padStart(6)}s  ${fmt(r.avg).padStart(8)}s  ${r.ratio.toFixed(2).padStart(8)}x`,
+        `${String(r.edge).padStart(4)}  ${String(r.steps).padStart(4)}  ${String(r.seconds).padStart(3)}s  ${fmt(r.first).padStart(6)}s  ${fmt(r.avg).padStart(8)}s  ${r.ratio.toFixed(2).padStart(8)}x`,
       )
     }
-    console.log(`\n画面：短边 ${videoConfig.shortEdge}，${videoConfig.aspectRatio}；时长档：${videoConfig.durationBuckets.join('/')}s`)
+    console.log(`\n模式：${videoConfig.mode}；画幅 ${videoConfig.aspectRatio}；时长档：${videoConfig.durationBuckets.join('/')}s`)
     break
   }
 

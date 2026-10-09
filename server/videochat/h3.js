@@ -8,7 +8,8 @@ import { videoConfig } from './config.js'
 /**
  * MiniMax H3 客户端：调用部署在 GPU 上的 SGLang 服务（/v1/videos）。
  *
- * 用 ref2va 任务：
+ * fast 模式（FastH3）：t2va，纯文字提示词，5 个 sigma 点。
+ * ref 模式（基础版 H3）：ref2va
  *   - 参考图 <Picture 1> + 声音样本 <Audio 1>：保证每段视频长相、声音一致
  *   - 关键帧：第一帧和最后一帧都钉在同一张定妆照上，所有片段首尾相接、和待机视频无缝切换
  */
@@ -37,6 +38,15 @@ export function pickDuration(line, buckets = videoConfig.durationBuckets) {
  * 所以 portrait 最好用正方形的脸部特写。
  */
 export function buildRequest({ prompt, durationSeconds, seed = videoConfig.seed, withVoice = true }) {
+  const target = {
+    short_edge: videoConfig.shortEdge,
+    aspect_ratio: videoConfig.aspectRatio,
+    duration_seconds: durationSeconds,
+  }
+  if (videoConfig.mode === 'fast') {
+    return { prompt, task: 't2va', conditions: [], target, seed, num_inference_steps: videoConfig.steps }
+  }
+
   const { anchor, portrait, voice } = videoConfig.assets
   const body = {
     prompt,
@@ -48,11 +58,7 @@ export function buildRequest({ prompt, durationSeconds, seed = videoConfig.seed,
       { type: 'image', uri: anchor, role: 'keyframe', frame_index: 0 },
       { type: 'image', uri: anchor, role: 'keyframe', frame_index: -1 },
     ],
-    target: {
-      short_edge: videoConfig.shortEdge,
-      aspect_ratio: videoConfig.aspectRatio,
-      duration_seconds: durationSeconds,
-    },
+    target,
     seed,
     num_inference_steps: videoConfig.steps,
   }

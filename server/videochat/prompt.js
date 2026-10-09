@@ -1,14 +1,19 @@
 import { character } from '../character.js'
+import { videoConfig } from './config.js'
 
 /**
- * 固定场景的描述。每段视频的首尾帧都钉在同一张定妆照上，
- * 这里的描述要和定妆照一致，模型才不会在中间「跑偏」。
+ * 固定场景的描述。
+ * - fast 模式没有参考图和声音样本，长相、场景、声音全靠这几段文字，所以要写得具体，而且每次一字不差。
+ *   细节越具体（发型、衣服颜色、饰品、房间里的摆设、声音特点），不同片段之间越像同一个人、同一个房间。
+ * - ref 模式下首尾帧钉在定妆照上，这里的描述要和定妆照一致。
  */
 export const scene = {
-  look: '二十多岁的中国女生，长发，穿浅色针织衫，素颜淡妆，五官柔和',
-  place: '温馨的卧室，暖色台灯，背景有书架和绿植，略微虚化',
-  camera: '竖屏手机前置摄像头视角，固定机位，胸口以上的近景，自然光线，真实质感',
-  voice: '年轻女生的声音，温柔自然，带一点俏皮，像在和好朋友视频聊天',
+  look:
+    '一位二十四岁的中国女生，鹅蛋脸，皮肤白皙，黑色及肩长发、空气刘海，' +
+    '杏仁眼、双眼皮，淡妆，戴一对小巧的银色耳钉，穿米白色圆领针织衫',
+  place: '她的卧室，暖黄色台灯在画面左侧，背后是浅木色书架和一盆绿萝，背景略微虚化，夜晚',
+  camera: '竖屏手机前置摄像头自拍视角，手机固定不动，胸口以上的近景，人物居中，真实质感，不是动画',
+  voice: '二十出头女生的声音，音色清亮偏甜，语速自然，温柔里带一点俏皮，标准普通话',
 }
 
 /** 表情 / 动作的可选值，由台词编剧挑选，写进视频提示词 */
@@ -44,24 +49,28 @@ export function writerSystemPrompt() {
 
 /**
  * 拼出给 H3 的提示词。
- * ref2va 里参考素材按条件顺序编号：<Picture 1> 是角色参考图，<Audio 1> 是声音样本（见 h3.js 的 conditions 顺序）。
+ * ref 模式里参考素材按条件顺序编号：<Picture 1> 是角色参考图，<Audio 1> 是声音样本（见 h3.js 的 conditions 顺序）。
  */
 export function h3Prompt({ line, emotion, action }) {
   const face = EMOTIONS[emotion] ?? EMOTIONS.neutral
   const act = action ? `，${action}` : ''
+  const ref = videoConfig.mode === 'ref'
   return [
     `${scene.camera}。${scene.place}。`,
-    `<Picture 1> 中的女生（${scene.look}）看着镜头，${face}${act}，`,
-    `用 <Audio 1> 里的声音（${scene.voice}）说：“${line}”`,
+    ref ? `<Picture 1> 中的女生（${scene.look}）` : `${scene.look}。她`,
+    `看着镜头，${face}${act}，`,
+    ref ? `用 <Audio 1> 里的声音（${scene.voice}）` : `用${scene.voice}`,
+    `说：“${line}”`,
     `说完后恢复自然放松的表情，继续看着镜头。只有她一个人说话，没有背景音乐。`,
   ].join('')
 }
 
-/** 等待时循环播放的待机视频的提示词（用 gpu/h3.py idle 生成） */
+/** 等待时循环播放的待机视频的提示词（用 npm run h3 -- idle 生成） */
 export function idlePrompt() {
+  const who = videoConfig.mode === 'ref' ? `<Picture 1> 中的女生（${scene.look}）` : `${scene.look}。她`
   return (
-    `${scene.camera}。${scene.place}。` +
-    `<Picture 1> 中的女生（${scene.look}）安静地看着镜头，轻轻呼吸，偶尔眨眼，嘴角带着淡淡的微笑，` +
-    `像在认真听对方说话，没有说话。环境很安静，没有背景音乐。`
+    `${scene.camera}。${scene.place}。${who}` +
+    `安静地看着镜头，轻轻呼吸，偶尔眨眼，嘴角带着淡淡的微笑，像在认真听对方说话，没有说话。` +
+    `环境很安静，没有背景音乐。`
   )
 }
