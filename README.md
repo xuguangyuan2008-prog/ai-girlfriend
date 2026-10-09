@@ -9,6 +9,17 @@
 - **活人感**：呼吸、自动眨眼、视线微动、倾听时前倾、思考时抬眼
 - **口型同步**：按音量和频谱实时驱动 a/i/u/e/o 口型
 
+## 两种模式
+
+| | 实时通话（`/`） | 视频聊天（`/video.html`） |
+|---|---|---|
+| 交互 | 打电话，即说即回，可以打断 | 发消息，她回一段视频 |
+| 形象 | 3D 角色（VRM），表情/手势/口型实时驱动 | **真人视频**：MiniMax H3 生成，声音、口型、表情一次生成，天然一致 |
+| 延迟 | 1 秒内 | 取决于 GPU，几秒到几十秒 |
+| 依赖 | OpenAI / 豆包实时语音 | 文本模型 + 租用 GPU 跑 H3，见 [gpu/README.md](gpu/README.md) |
+
+视频聊天本地调试不需要 GPU：不填 `H3_BASE_URL` 时走调试模式，只显示字幕。
+
 ## 快速开始
 
 ```bash
@@ -85,6 +96,7 @@ OpenAI：
 ```
 server/
   character.js        人设、声音（改这里换角色）
+  videochat/          视频聊天：台词编剧、H3 客户端、场景与提示词、SSE 接口
   api.js              /api/config、/api/session、/api/emotion
   openai.js           创建 OpenAI Realtime 会话（模型、VAD、转写等配置）
   doubao.js           豆包二进制协议编解码 + WebSocket 中转
@@ -92,8 +104,11 @@ server/
   index.js            生产环境服务器
 shared/
   cues.js             表情 / 手势名单和导演提示词（前后端共用）
+gpu/                  H3 的 GPU 部署脚本和提速说明
+scripts/h3.js         H3 命令行：预热、生成待机视频、单条测试、压测
 src/
   main.ts             界面与各模块组装
+  video/              视频聊天页面
   avatar/
     Avatar.ts         three.js 场景、VRM 加载、姿态/表情/眨眼/视线
     gestures.ts       程序化手势定义

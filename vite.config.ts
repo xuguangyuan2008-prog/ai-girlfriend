@@ -20,6 +20,10 @@ export default defineConfig(({ mode }) => {
   const phone = mode === 'phone'
   return {
     plugins: [api(), phone && basicSsl()],
+    build: {
+      // 两个页面：实时通话（index.html）和视频聊天（video.html）
+      rollupOptions: { input: ['index.html', 'video.html'] },
+    },
     server: {
       host: phone || undefined,
       // 允许通过内网穿透域名访问（cloudflared / ngrok）

@@ -65,6 +65,15 @@ body {
   gap: 8px;
 }
 
+.switch {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  text-decoration: none;
+  pointer-events: auto;
+}
+
 .dot {
   width: 9px;
   height: 9px;

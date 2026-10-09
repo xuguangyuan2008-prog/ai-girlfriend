@@ -2,6 +2,7 @@ import { character } from './character.js'
 import { attachDoubao, doubaoConfigured } from './doubao.js'
 import { classifyEmotion, emotionConfigured } from './emotion.js'
 import { createOpenAISession, openaiConfigured } from './openai.js'
+import { handleVideoChat, serveMedia, videoChatConfig } from './videochat/index.js'
 
 export { attachDoubao }
 
@@ -38,6 +39,9 @@ const routes = {
   /** OpenAI：换取短时效 client secret，浏览器拿它直连 */
   'POST /api/session': () => createOpenAISession(),
 
+  /** 视频聊天模式的前端配置 */
+  'GET /api/video-chat/config': () => videoChatConfig(),
+
   /** 给一句台词标注表情（豆包等不支持带外响应的模型用） */
   'POST /api/emotion': async (req) => {
     if (!emotionConfigured()) return [501, { error: '未配置 EMOTION_API_KEY / EMOTION_MODEL' }]
@@ -50,6 +54,17 @@ const routes = {
 /** Connect / Express 通用中间件 */
 export async function apiMiddleware(req, res, next) {
   const path = new URL(req.url, 'http://localhost').pathname
+
+  // 这两个要自己写响应（SSE 流 / 视频文件），不走下面的 JSON 路由
+  if (req.method === 'GET' && path.startsWith('/media/')) return serveMedia(req, res, path)
+  if (req.method === 'POST' && path === '/api/video-chat') {
+    try {
+      return await handleVideoChat(req, res, await readJson(req))
+    } catch (err) {
+      return json(res, 400, { error: err.message })
+    }
+  }
+
   const route = routes[`${req.method} ${path}`]
   if (!route) return next()
   try {

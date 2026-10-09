@@ -1,0 +1,224 @@
+:root {
+  --bg: #0f0f14;
+  --panel: rgba(20, 20, 28, 0.62);
+  --text: #f3f1f8;
+  --muted: rgba(243, 241, 248, 0.65);
+  --accent: #ff6f9c;
+  --border: rgba(255, 255, 255, 0.12);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+/* 9:16 画框：手机上铺满，电脑上居中 */
+.frame {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  height: 100%;
+  max-width: calc(100dvh * 9 / 16);
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, #3a2b3f, #121218 70%);
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 回复视频叠在待机视频上，淡入淡出切换 */
+.reply {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.reply.on {
+  opacity: 1;
+}
+
+.top {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top));
+  left: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.name {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.switch {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.status {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.subtitle {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: calc(150px + env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 18px;
+  line-height: 1.5;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.8),
+    0 0 12px rgba(0, 0, 0, 0.5);
+}
+
+.tap {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 14px 22px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+}
+
+.log {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  width: min(calc(100dvh * 9 / 16), 100%);
+  padding: 0 16px;
+  margin: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.log.away {
+  opacity: 0;
+}
+
+.log li {
+  max-width: 80%;
+  padding: 7px 12px;
+  border-radius: 14px;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  font-size: 14px;
+  line-height: 1.45;
+  border: 1px solid var(--border);
+}
+
+.log li.user {
+  align-self: flex-end;
+}
+
+.log li.assistant {
+  align-self: flex-start;
+  color: var(--muted);
+}
+
+.composer {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  width: min(calc(100dvh * 9 / 16), 100%);
+  padding: 0 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.composer input,
+.composer button {
+  height: 48px;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.composer input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 18px;
+  outline: none;
+}
+
+.composer button {
+  padding: 0 20px;
+  cursor: pointer;
+}
+
+.composer button.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.composer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+[hidden] {
+  display: none !important;
+}

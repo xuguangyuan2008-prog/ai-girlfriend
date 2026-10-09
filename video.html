@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>视频聊天</title>
+  </head>
+  <body>
+    <main class="frame">
+      <img id="poster" class="layer" alt="" hidden />
+      <video id="idle" class="layer" muted loop playsinline autoplay preload="auto"></video>
+      <video id="reply" class="layer reply" playsinline preload="auto"></video>
+
+      <header class="top">
+        <div class="name"><span id="charName">小雪</span><a class="switch" href="/">实时通话 ›</a></div>
+        <div id="status" class="status" hidden></div>
+      </header>
+
+      <div id="subtitle" class="subtitle" hidden></div>
+      <button id="tapToPlay" class="tap" hidden>▶ 点一下播放她的回复</button>
+    </main>
+
+    <ul id="log" class="log"></ul>
+
+    <form id="composer" class="composer">
+      <input id="input" placeholder="说点什么…" autocomplete="off" enterkeyhint="send" maxlength="500" />
+      <button id="send" type="submit" class="primary">发送</button>
+    </form>
+
+    <script type="module" src="/src/video/main.ts"></script>
+  </body>
+</html>
