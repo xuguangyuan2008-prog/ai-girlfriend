@@ -138,24 +138,36 @@ function upstreamHeaders() {
   return headers
 }
 
+// SC / SC2.0 的官方克隆音色（ICL_ / saturn_ 开头）在服务端已经配好了角色描述，不需要也不应该再传人设
+const hasBuiltInCharacter = (speaker) => /^(ICL_|saturn_)/.test(speaker)
+
 function startSessionPayload(sessionId) {
-  const extra = { strict_audit: false }
+  const speaker = character.doubaoSpeaker
+  const extra = {
+    strict_audit: false,
+    // 页面有静音按钮：静音时不上传音频，靠 keep_alive 避免音频流超时
+    input_mod: 'keep_alive',
+  }
   if (process.env.DOUBAO_MODEL) extra.model = process.env.DOUBAO_MODEL
+
+  const dialog = { dialog_id: sessionId, extra }
+  if (!hasBuiltInCharacter(speaker)) {
+    // O / O2.0 版本的人设字段
+    dialog.bot_name = character.name
+    dialog.system_role = character.instructions
+    dialog.speaking_style = character.speakingStyle
+  }
+
   return {
     asr: {
       extra: { end_smooth_window_ms: Number(process.env.DOUBAO_END_SMOOTH_MS) || 800 },
     },
     tts: {
-      speaker: character.doubaoSpeaker,
+      speaker,
+      // 单声道 24kHz 16bit 小端（默认是 OGG Opus，不方便直接播放）
       audio_config: { channel: 1, format: 'pcm_s16le', sample_rate: 24000 },
     },
-    dialog: {
-      dialog_id: sessionId,
-      bot_name: character.name,
-      system_role: character.instructions,
-      speaking_style: character.speakingStyle,
-      extra,
-    },
+    dialog,
   }
 }
 

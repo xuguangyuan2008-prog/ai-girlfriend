@@ -76,8 +76,8 @@ export class MicCapture {
       },
     })
     this.node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
-      // 静音时发全零，保持音频流连续，避免服务端超时断开
-      this.onChunk(this.enabled ? e.data : new ArrayBuffer(e.data.byteLength))
+      // 静音时不上传（服务端用 keep_alive 模式保持连接）
+      if (this.enabled) this.onChunk(e.data)
     }
     // 接到一个音量为 0 的节点上，保证 worklet 持续被调度
     this.sink = this.ctx.createGain()

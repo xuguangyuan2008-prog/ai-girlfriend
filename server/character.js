@@ -24,8 +24,10 @@ export const character = {
   get openaiVoice() {
     return process.env.OPENAI_VOICE || 'marin'
   },
-  // 豆包 O 版本音色：zh_female_vv_jupiter_bigtts、zh_female_xiaohe_jupiter_bigtts、
-  // zh_male_yunzhou_jupiter_bigtts、zh_male_xiaotian_jupiter_bigtts
+  // 豆包音色（O / O2.0 版本）：zh_female_vv_jupiter_bigtts（活泼女声，默认）、zh_female_xiaohe_jupiter_bigtts、
+  // zh_male_yunzhou_jupiter_bigtts、zh_male_xiaotian_jupiter_bigtts；
+  // 仅 O2.0 的英文音色：en_male_tim_uranus_bigtts、en_female_dacey_uranus_bigtts、en_female_stokie_uranus_bigtts。
+  // SC / SC2.0 的官方克隆音色（ICL_… / saturn_…）自带角色设定，用它们时上面的 instructions 不会发送。
   get doubaoSpeaker() {
     return process.env.DOUBAO_SPEAKER || 'zh_female_vv_jupiter_bigtts'
   },
