@@ -44,7 +44,9 @@ else
     --enable-torch-compile        # 配合固定时长档，用 `npm run h3 -- warmup` 预热
   )
   if [[ "$LORA" != "none" ]]; then
-    args+=(--lora-path "$LORA" --lora-weight-name "$LORA_WEIGHT")
+    args+=(--lora-path "$LORA")
+    # LORA 是本地文件时直接用；是 Hugging Face 仓库名时要指定仓库里的文件
+    if [[ ! -f "$LORA" ]]; then args+=(--lora-weight-name "$LORA_WEIGHT"); fi
     # 主干量化成 FP8 时，LoRA 在前向时单独计算，不合并进 FP8 权重，避免精度损失
     if [[ "$QUANT" != "none" ]]; then args+=(--lora-merge-mode dynamic); fi
   fi
