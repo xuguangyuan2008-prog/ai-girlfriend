@@ -8,10 +8,10 @@ import { videoConfig } from './config.js'
 /**
  * MiniMax H3 客户端：调用部署在 GPU 上的 SGLang 服务（/v1/videos）。
  *
- * fast 模式（FastH3）：t2va，纯文字提示词，5 个 sigma 点。
- * ref 模式（基础版 H3）：ref2va
+ * ref 模式（默认，基础版 H3 + 8 步加速 LoRA）：ref2va
  *   - 参考图 <Picture 1> + 声音样本 <Audio 1>：保证每段视频长相、声音一致
  *   - 关键帧：第一帧和最后一帧都钉在同一张定妆照上，所有片段首尾相接、和待机视频无缝切换
+ * fast 模式（FastH3）：t2va，纯文字提示词，5 个 sigma 点。
  */
 
 /** 估算念完一句话要几秒（中文约 0.22 秒/字） */
@@ -63,6 +63,8 @@ export function buildRequest({ prompt, durationSeconds, seed = videoConfig.seed,
     num_inference_steps: videoConfig.steps,
   }
   if (videoConfig.quality) body.quality = videoConfig.quality
+  if (videoConfig.flowShift !== undefined) body.flow_shift = videoConfig.flowShift
+  if (videoConfig.audioFlowShift !== undefined) body.audio_flow_shift = videoConfig.audioFlowShift
   return body
 }
 

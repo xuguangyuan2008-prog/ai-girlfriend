@@ -17,20 +17,33 @@ export const videoConfig = {
   },
 
   /**
-   * fast：社区蒸馏的 FastH3（4 次前向 + 稀疏注意力，约快 14 倍）。只支持文生视频，
-   *       不能传参考图 / 声音 / 首尾帧，长相和声音靠固定的文字描述 + 固定种子维持。
-   * ref： 基础版 H3 的 ref2va，参考图 + 声音样本 + 首尾帧钉住定妆照，一致性最好，但没有蒸馏、慢很多。
+   * ref（默认）：基础版 H3 的 ref2va + lightx2v 的 Ref2V 8 步加速 LoRA。
+   *       参考图 + 声音样本 + 首尾帧钉住定妆照，长相、声音、场景都稳定；8 步比原版 50 步快约 6 倍。
+   * fast：社区蒸馏的 FastH3（4 次前向 + 稀疏注意力）。只支持文生视频，不能传参考图 / 声音 / 首尾帧，
+   *       长相和声音靠固定的文字描述 + 固定种子维持，会有漂移，能接受漂移时最快。
    * 要和 GPU 上启动的模型对应（gpu/serve.sh 的 MODE）。
    */
   get mode() {
-    return env.H3_MODE === 'ref' ? 'ref' : 'fast'
+    return env.H3_MODE === 'fast' ? 'fast' : 'ref'
   },
 
   // ---- 生成参数：决定速度的主要旋钮 ----
   get steps() {
     // FastH3 固定 5 个 sigma 点（4 次前向），改了会被服务端拒绝
     if (this.mode === 'fast') return 5
-    return num(env.H3_STEPS, 30)
+    // 配合 8 步加速 LoRA；不加载 LoRA（serve.sh 里 LORA=none）时要改回 30~50
+    return num(env.H3_STEPS, 8)
+  },
+  /**
+   * 视频 / 音频的时间步偏移（flow shift）。不填用 H3 默认的 12 / 3。
+   * lightx2v Ref2V 8 步 LoRA 的模型卡写的是 12 / 3，也有资料写训练用的是 6 / 3，
+   * 用 `npm run h3 -- bench --shifts 12,6` 对比后再定。仅 ref 模式。
+   */
+  get flowShift() {
+    return this.mode === 'ref' ? num(env.H3_FLOW_SHIFT, undefined) : undefined
+  },
+  get audioFlowShift() {
+    return this.mode === 'ref' ? num(env.H3_AUDIO_FLOW_SHIFT, undefined) : undefined
   },
   get shortEdge() {
     return num(env.H3_SHORT_EDGE, 768) // 768 是官方验证过的；480 约快 2 倍以上，画质需实测
