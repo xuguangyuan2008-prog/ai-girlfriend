@@ -138,6 +138,8 @@ switch (command) {
     const c = loadConn()
     remote(c, `mkdir -p ${DATA}/logs ${DATA}/assets`)
     upload(c, ['gpu/serve.sh', 'gpu/autodl.sh'], `${DATA}/`)
+    // Windows 上的 Git 可能把换行转成 CRLF，bash 不认，上传后统一转回 LF
+    remote(c, `sed -i 's/\\r$//' ${DATA}/serve.sh ${DATA}/autodl.sh`)
     // 在实例上后台运行，SSH 断开也不影响；这里只是跟着看日志，按 Ctrl+C 不会中断安装
     const extra = ['NEED_GB', 'HF_ENDPOINT'].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`).join(' ')
     const r = remote(c, `cd ${DATA} && ${extra} nohup bash autodl.sh > logs/setup.log 2>&1 & echo $!`, { capture: true })
