@@ -37,19 +37,33 @@ echo "== 4/5 下载 lightx2v Ref2V 8 步加速 LoRA（约 1.4GB）"
 LORA_FILE=minimax_h3_ref2v_turbo_8step_v1.0_768p_bf16.safetensors
 hf download lightx2v/Minimax-h3-Turbo "$LORA_FILE" --local-dir "$MODELS/loras"
 
-echo "== 5/5 生成启动脚本 $DATA/start.sh"
+echo "== 5/5 生成启动 / 停止脚本 $DATA/start.sh、$DATA/stop.sh"
 mkdir -p "$DATA/assets" "$DATA/logs"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+PID_FILE=$DATA/logs/serve.pid
 cat > "$DATA/start.sh" <<START
 #!/usr/bin/env bash
 # 后台启动 H3 服务，日志在 $DATA/logs/serve.log。看日志：tail -f $DATA/logs/serve.log
+if [ -f $PID_FILE ] && kill -0 "\$(cat $PID_FILE)" 2>/dev/null; then echo "服务已经在运行"; exit 0; fi
 export HF_HOME=$HF_HOME HF_ENDPOINT=$HF_ENDPOINT HF_HUB_OFFLINE=1
-export MODEL=$MODELS/MiniMax-H3 LORA=$MODELS/loras/$LORA_FILE
-nohup bash $SCRIPT_DIR/serve.sh > $DATA/logs/serve.log 2>&1 &
-echo "已在后台启动（PID \$!），首次加载权重 + FP8 量化 + 编译要几分钟。"
-echo "看到日志里出现服务已就绪 / Uvicorn running 之类的字样后即可使用：tail -f $DATA/logs/serve.log"
+export MODEL=\${MODEL:-$MODELS/MiniMax-H3} LORA=\${LORA:-$MODELS/loras/$LORA_FILE}
+# setsid 让服务自成一个进程组，停止时连同 SGLang 派生的工作进程一起结束
+setsid nohup bash $SCRIPT_DIR/serve.sh > $DATA/logs/serve.log 2>&1 < /dev/null &
+echo \$! > $PID_FILE
+echo "已在后台启动，首次加载权重 + FP8 量化 + 编译要几分钟。看日志：tail -f $DATA/logs/serve.log"
 START
-chmod +x "$DATA/start.sh"
+cat > "$DATA/stop.sh" <<STOP
+#!/usr/bin/env bash
+# 停止 H3 服务（整个进程组）
+if ! [ -f $PID_FILE ] || ! kill -0 "\$(cat $PID_FILE)" 2>/dev/null; then echo "服务没有在运行"; rm -f $PID_FILE; exit 0; fi
+pgid=\$(cat $PID_FILE)
+kill -TERM -- -\$pgid 2>/dev/null
+for i in \$(seq 20); do kill -0 -- -\$pgid 2>/dev/null || break; sleep 1; done
+kill -KILL -- -\$pgid 2>/dev/null
+rm -f $PID_FILE
+echo "已停止"
+STOP
+chmod +x "$DATA/start.sh" "$DATA/stop.sh"
 
 du -sh "$MODELS"/* 2>/dev/null || true
 cat <<DONE
