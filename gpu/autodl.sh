@@ -5,6 +5,11 @@
 #   bash autodl.sh
 set -euo pipefail
 
+# AUTO_SHUTDOWN=1：脚本结束（不论成功失败）后让实例关机，有卡模式下载完不空转计费。AutoDL 实例里执行 shutdown 就是关机
+if [[ ${AUTO_SHUTDOWN:-0} == 1 ]]; then
+  trap 'echo "== 安装脚本已结束，60 秒后自动关机"; sleep 60; shutdown' EXIT
+fi
+
 DATA=${DATA:-/root/autodl-tmp}                       # AutoDL 数据盘，系统盘只有 30GB，不要往那里放模型
 MODELS=$DATA/models
 # 模型下载源：modelscope（魔搭，默认）或 hf（Hugging Face）。AutoDL 上实测魔搭快得多

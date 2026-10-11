@@ -63,7 +63,13 @@ npm run autodl -- setup
 - 从魔搭社区**只下载 H3 的 Ref2VA 部分**和 8 步加速 LoRA（AutoDL 上实测魔搭比 Hugging Face 镜像快得多）；
 - 生成启动和停止脚本。
 
-下载约 144GB，要一段时间。安装在实例后台运行，**按 Ctrl+C 或关掉电脑都不会中断**，之后用 `npm run autodl -- setup-log` 接着看进度。中途失败的话，重新运行 `setup` 会断点续传。
+下载约 144GB，要一段时间。实测无卡模式限速（约 4MB/s，要十个小时左右），有卡模式约 14MB/s（3 小时左右）。在有卡模式下装的话，加上 `--shutdown`，装完自动关机，不空转计费：
+
+```bash
+npm run autodl -- setup --shutdown
+```
+
+安装在实例后台运行，**按 Ctrl+C 或关掉电脑都不会中断**，之后用 `npm run autodl -- setup-log` 接着看进度。中途失败的话，重新运行 `setup` 会断点续传。
 
 ## 3. 上传角色素材
 

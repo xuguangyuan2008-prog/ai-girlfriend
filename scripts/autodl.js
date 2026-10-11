@@ -1,7 +1,7 @@
 // AutoDL 一键配置：在你自己的电脑上运行，通过 SSH 操作 AutoDL 实例。
 //
 //   npm run autodl -- login "ssh -p 12345 root@connect.xxx.seetacloud.com"   第一次：保存连接、配置免密登录（输一次密码）
-//   npm run autodl -- setup               上传脚本，在实例上装依赖、下载模型（建议无卡模式开机时运行）
+//   npm run autodl -- setup [--shutdown]  上传脚本，在实例上装依赖、下载模型；--shutdown 表示结束后让实例自动关机
 //   npm run autodl -- assets ./my-assets  上传 anchor.png / portrait.png / voice.wav
 //   npm run autodl -- start               启动 H3 服务，等到就绪（需要有卡模式开机）
 //   npm run autodl -- tunnel              建立 SSH 隧道，把实例的 30000 端口映射到本机（保持运行）
@@ -147,14 +147,17 @@ switch (command) {
       // Windows 上的 Git 可能把换行转成 CRLF，bash 不认，上传后统一转回 LF
       remote(c, `sed -i 's/\\r$//' ${DATA}/serve.sh ${DATA}/autodl.sh`)
       // 在实例上后台运行，SSH 断开也不影响；这里只是跟着看日志，按 Ctrl+C 不会中断安装
-      const extra = ['NEED_GB', 'HF_ENDPOINT', 'PIP_INDEX_URL', 'MODEL_SOURCE', 'DL_WORKERS'].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`).join(' ')
+      const env = ['NEED_GB', 'HF_ENDPOINT', 'PIP_INDEX_URL', 'MODEL_SOURCE', 'DL_WORKERS'].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`)
+      if (args.includes('--shutdown')) env.push('AUTO_SHUTDOWN=1')
+      const extra = env.join(' ')
       const r = remote(c, `cd ${DATA} && ${extra} nohup bash autodl.sh > logs/setup.log 2>&1 < /dev/null & echo $! | tee ${setupPid}`, { capture: true })
       pid = r.stdout.trim()
       console.log(`安装和下载已在实例后台运行（PID ${pid}），下载约 144GB，需要较长时间。`)
+      if (args.includes('--shutdown')) console.log('结束后（不论成功失败）实例会自动关机。')
     }
     console.log(`这里实时显示进度，按 Ctrl+C 只是不看了，安装会继续；之后可以再运行 npm run autodl -- setup-log 接着看。\n`)
     remote(c, `tail --pid=${pid} -n +1 -f ${DATA}/logs/setup.log`)
-    remote(c, `tail -n 4 ${DATA}/logs/setup.log`, { capture: true }).stdout.includes('准备完成')
+    remote(c, `tail -n 8 ${DATA}/logs/setup.log`, { capture: true }).stdout.includes('准备完成')
       ? console.log('\n✓ 准备完成。下一步：上传素材 npm run autodl -- assets <素材目录>，然后有卡模式开机，npm run autodl -- start')
       : console.log('\n安装没有完成，看上面的报错。修好后重新运行 npm run autodl -- setup 会断点续传。')
     break
