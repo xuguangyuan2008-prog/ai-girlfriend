@@ -5,7 +5,7 @@
 //   npm run autodl -- setup-stop          停止正在进行的安装（重新运行 setup 会接着下）
 //   npm run autodl -- assets ./my-assets  上传 anchor.png / portrait.png / voice.wav
 //   npm run autodl -- start               启动 H3 服务，等到就绪（需要有卡模式开机）
-//   npm run autodl -- make-assets [--seed 7] [--regen] [--anchor 图片.png]  让 H3 生成定妆照、脸部特写和声音样本（服务运行时）
+//   npm run autodl -- make-assets --anchor 定妆照.png [--seed 7]  由定妆照让 H3 生成声音样本、裁出脸部特写（服务运行时）
 //   npm run autodl -- tunnel              建立 SSH 隧道，把实例的 30000 端口映射到本机（保持运行）
 //   npm run autodl -- status              查看 GPU、磁盘、服务状态
 //   npm run autodl -- logs                实时查看服务日志
@@ -213,7 +213,7 @@ switch (command) {
     if (!gpu.stdout.trim()) die('实例上没有 GPU，可能是无卡模式开机。请在控制台关机后用正常模式开机')
     console.log(`GPU：${gpu.stdout.trim()}`)
     const assets = remote(c, `ls ${ASSETS.map((f) => `${DATA}/assets/${f}`).join(' ')}`, { capture: true })
-    if (assets.status !== 0) console.log('提示：实例上还没有素材。服务启动后可以运行 npm run autodl -- make-assets 让 H3 生成一套，或者用 assets 命令上传自己的')
+    if (assets.status !== 0) console.log('提示：实例上还没有素材。服务启动后可以用 npm run autodl -- make-assets --anchor 定妆照.png 生成其余两样，或者用 assets 命令上传自己的')
     if (remote(c, `test -x ${DATA}/start.sh`, { capture: true }).status !== 0) die('还没有完成准备，先运行 npm run autodl -- setup')
     // serve.sh 每次都传最新的（启动参数改了不用重跑 setup）；Windows 上的 CRLF 换行转回 LF
     upload(c, ['gpu/serve.sh'], `${DATA}/`)
@@ -235,24 +235,32 @@ switch (command) {
   }
 
   case 'make-assets': {
-    // 用 H3 自己生成起步素材：文字描述 → 一段打招呼的视频 → 截第一帧当定妆照、裁脸、提取声音
+    // 由一张定妆照生成其余素材：首尾帧钉在定妆照上，让她打个招呼 → 提取声音、从定妆照裁脸。
+    // （只部署了 Ref2VA，至少要一个参考条件；纯文字的 t2va 由 FL2VA 分区负责，我们没下载，所以定妆照要先用文生图做好）
     const c = loadConn()
     const out = args.find((a, i) => !a.startsWith('--') && !['--anchor', '--seed'].includes(args[i - 1])) || 'my-assets'
     if (remote(c, `curl -s -m 5 -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models`, { capture: true }).stdout !== '200') {
       die('H3 服务没有在运行。先用有卡模式开机，再运行 npm run autodl -- start')
     }
     const anchorFile = opt('--anchor')
+    const { scene } = await import('../server/videochat/prompt.js')
+    if (!anchorFile && remote(c, `test -f ${DATA}/assets/anchor.png`, { capture: true }).status !== 0) {
+      die(
+        '先要有一张定妆照。用文生图工具（即梦、豆包、通义万相等）按下面的描述做一张 9:16 竖图，然后运行\n' +
+          '  npm run autodl -- make-assets --anchor 图片路径\n\n' +
+          `竖屏 9:16 照片，${scene.camera}，人物看着镜头、嘴巴自然闭合、淡淡微笑，头顶上方留一些空间。` +
+          `${scene.look}。${scene.place}。不要文字和水印。`,
+      )
+    }
     if (anchorFile) {
       if (!existsSync(anchorFile)) die(`找不到 ${anchorFile}`)
       remote(c, `mkdir -p ${DATA}/assets`)
       upload(c, [anchorFile], `${DATA}/assets/anchor.png`)
     }
-    const { scene } = await import('../server/videochat/prompt.js')
     const line = '嗨，你终于来啦！我今天一直在等你呢，快跟我说说，你今天过得怎么样？'
     const job = {
       base: `http://127.0.0.1:${PORT}`,
       dir: `${DATA}/assets`,
-      regen: args.includes('--regen') && !anchorFile,
       seed: Number(opt('--seed')) || 7,
       seconds: 8,
       short_edge: Number(process.env.H3_SHORT_EDGE) || 768,
@@ -266,16 +274,14 @@ switch (command) {
     const r = remote(c, `echo ${b64} | base64 -d > ${DATA}/make_assets.json && ${DATA}/venv/bin/python ${DATA}/make_assets.py ${DATA}/make_assets.json`)
     if (r.status !== 0) {
       die(
-        '生成没有成功（看上面的输出）。如果是 H3 不接受纯文字请求，可以先用文生图工具（即梦、豆包等）做一张 9:16 的定妆照，然后：\n' +
-          `  npm run autodl -- make-assets --anchor 定妆照.png`,
+        '生成没有成功，看上面的输出。',
       )
     }
     download(c, [...ASSETS, 'make_assets.mp4'].map((f) => `${DATA}/assets/${f}`), out)
     console.log(`\n✓ 素材已经在实例上就位，也下载到了本机 ${out}/ 方便查看：`)
     console.log('  anchor.png 定妆照 / portrait.png 脸部裁剪 / voice.wav 声音 / make_assets.mp4 原始视频')
-    console.log('不满意的话：换个种子重新生成 npm run autodl -- make-assets --regen --seed 8；')
-    console.log('或者用自己做的定妆照 npm run autodl -- make-assets --anchor 图片.png；')
-    console.log('也可以改 server/videochat/prompt.js 里 scene 的外貌描述再生成。')
+    console.log('声音不满意：换个种子重新生成 npm run autodl -- make-assets --seed 8（会沿用实例上的定妆照）；')
+    console.log('换定妆照：npm run autodl -- make-assets --anchor 新图片.png。声音的描述在 server/videochat/prompt.js 的 scene.voice。')
     break
   }
 

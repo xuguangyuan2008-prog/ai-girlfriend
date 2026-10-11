@@ -1,8 +1,7 @@
-"""用 H3 自己生成一套起步素材（在 AutoDL 实例上运行，由 npm run autodl -- make-assets 调用）。
+"""由定妆照生成其余起步素材（在 AutoDL 实例上运行，由 npm run autodl -- make-assets 调用）。
 
-- 没有 anchor.png：只用文字描述生成一段她打招呼的视频，第一帧当定妆照
-- 已有 anchor.png（比如用文生图工具做的）：首尾帧钉在这张图上生成，只取声音和裁剪
-然后从视频里提取声音 → voice.wav，从定妆照上部裁正方形 → portrait.png。
+首尾帧钉在 anchor.png 上，让她打个招呼；从视频里提取声音 → voice.wav，从定妆照上部裁正方形 → portrait.png。
+（服务只部署了 Ref2VA，请求至少要带一个参考条件，所以定妆照要先有。）
 
     python make_assets.py job.json
 """
@@ -18,14 +17,14 @@ job = json.load(open(sys.argv[1], encoding="utf-8"))
 base, assets = job["base"], job["dir"]
 os.makedirs(assets, exist_ok=True)
 anchor = os.path.join(assets, "anchor.png")
-use_anchor = os.path.exists(anchor) and not job.get("regen")
+if not os.path.exists(anchor):
+    print(f"缺少定妆照 {anchor}")
+    sys.exit(2)
 
-conditions = []
-if use_anchor:
-    conditions = [
-        {"type": "image", "uri": anchor, "role": "keyframe", "frame_index": 0},
-        {"type": "image", "uri": anchor, "role": "keyframe", "frame_index": -1},
-    ]
+conditions = [
+    {"type": "image", "uri": anchor, "role": "keyframe", "frame_index": 0},
+    {"type": "image", "uri": anchor, "role": "keyframe", "frame_index": -1},
+]
 body = {
     "prompt": job["prompt"],
     "task": "ref2va",
@@ -47,7 +46,7 @@ def call(method, path, data=None):
         return r.read()
 
 
-print("用定妆照做首尾帧生成" if use_anchor else "只用文字描述生成（定妆照也从视频里取）")
+print("首尾帧钉在定妆照上，生成一段她打招呼的视频")
 try:
     j = json.loads(call("POST", "/v1/videos", body))
 except urllib.error.HTTPError as e:
@@ -73,8 +72,6 @@ def ff(*args):
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], check=True)
 
 
-if not use_anchor:
-    ff("-i", clip, "-frames:v", "1", anchor)
 # 胸口以上的近景，脸在画面上部：取宽度为边长的正方形，从顶部往下一点开始
 ff("-i", anchor, "-vf", "crop=iw:iw:0:ih*0.08", os.path.join(assets, "portrait.png"))
 ff("-i", clip, "-vn", "-ac", "1", "-ar", "24000", os.path.join(assets, "voice.wav"))
