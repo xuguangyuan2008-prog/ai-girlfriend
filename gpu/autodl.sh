@@ -23,6 +23,8 @@ MODEL_SOURCE=${MODEL_SOURCE:-modelscope}
 export HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}   # 用 hf 时走国内镜像
 export HF_HOME=$DATA/hf MODELSCOPE_CACHE=$DATA/cache/modelscope   # 缓存也放数据盘
 DL_WORKERS=${DL_WORKERS:-8}                          # 并行下载的文件数
+# 魔搭默认每个文件只用一条连接（AutoDL 上单连接只有 0.4~1.5MB/s），大于 500MB 的文件改成 16 路分段并行下载
+export MODELSCOPE_DOWNLOAD_PARALLELS=${MODELSCOPE_DOWNLOAD_PARALLELS:-16}
 NEED_GB=${NEED_GB:-170}
 
 echo "== 1/5 检查数据盘空间"
