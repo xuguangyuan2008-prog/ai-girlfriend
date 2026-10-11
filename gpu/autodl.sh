@@ -42,6 +42,9 @@ if [[ ! -x $VENV/bin/pip ]]; then   # 上次没建完整（比如缺 ensurepip�
 fi
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"
+# 默认用阿里云 PyPI 镜像（AutoDL 上直连 PyPI 只有几百 KB/s），可用 PIP_INDEX_URL 换别的源
+export PIP_INDEX_URL=${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
+echo "pip 源：$PIP_INDEX_URL"
 pip install -U pip
 pip install -U "sglang[diffusion]" "huggingface_hub[cli]"
 

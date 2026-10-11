@@ -123,11 +123,13 @@ npm run dev                                                           # 打开 h
 
 ## 常见问题
 
+下面 `XXX=值 npm run ...` 的写法适用于 macOS / Linux。Windows PowerShell 里要分两步写：`$env:XXX="值"; npm run ...`。
+
 - **AutoDL 换了登录地址或端口**（比如迁移实例后）：重新运行 `login`。
 - **本机 30000 端口被占用**：`LOCAL_PORT=30001 npm run autodl -- tunnel`，并把 `.env` 里的 `H3_BASE_URL` 改成 `http://localhost:30001`。
 - **启动时显存不足（OOM）**：把 `.env` 里的 `H3_SHORT_EDGE` 改成 640 或 480 再试；或者用 `QUANT=none npm run autodl -- start` 换大显存卡。
 - **想试试文本编码器常驻显存**（每条请求少一次搬运，96GB 卡可能放得下）：
   `npm run autodl -- stop && OFFLOAD_TEXT=0 npm run autodl -- start`，报显存不足就改回去。
-- **下载很慢或失败**：用 `HF_ENDPOINT=<其它镜像> npm run autodl -- setup` 换下载源。
+- **下载很慢或失败**：模型用 `HF_ENDPOINT=<其它镜像> npm run autodl -- setup` 换下载源；pip 依赖默认走阿里云镜像，用 `PIP_INDEX_URL=<其它源>` 换。
 - **装完 torch 报驱动太旧**：把 `npm run autodl -- setup-log` 里的报错发给开发者，需要换对应 CUDA 版本的 torch。
 - **想让手机也能用**：手机访问的是你电脑上的网页，不是 AutoDL，按主 README 的「在手机上测试」配置即可。AutoDL 的端口不要直接暴露到公网。
