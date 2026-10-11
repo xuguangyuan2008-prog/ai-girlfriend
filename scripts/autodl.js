@@ -216,7 +216,7 @@ switch (command) {
     remote(
       c,
       `echo "== GPU"; nvidia-smi --query-gpu=name,memory.used,memory.total,utilization.gpu --format=csv,noheader 2>/dev/null || echo "无 GPU（无卡模式）"; ` +
-        `echo "== 数据盘"; df -h ${DATA} | tail -1; du -sh ${DATA}/models 2>/dev/null; ` +
+        `echo "== 系统盘 / 数据盘"; df -h / ${DATA} | tail -2; du -sh ${DATA}/models ${DATA}/venv 2>/dev/null; ` +
         `echo "== 素材"; ls -la ${DATA}/assets 2>/dev/null | tail -n +2; ` +
         `echo "== 服务"; [ -f ${DATA}/logs/serve.pid ] && kill -0 $(cat ${DATA}/logs/serve.pid) 2>/dev/null && echo "进程运行中" || echo "未运行"; ` +
         `code=$(curl -s -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models); [ "$code" = 200 ] && echo "接口可用" || echo "接口不可用（$code）"; ` +

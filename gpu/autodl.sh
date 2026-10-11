@@ -22,6 +22,17 @@ fi
 
 echo "== 2/5 安装 ffmpeg 和 SGLang（会顺带安装 torch，体积较大）"
 if ! command -v ffmpeg >/dev/null; then apt-get update -qq && apt-get install -y -qq ffmpeg; fi
+# 装进数据盘上的独立虚拟环境：系统盘只有 30GB，镜像自带的包（比如 ComfyUI 镜像）也可能和 SGLang 冲突
+VENV=$DATA/venv
+export PIP_CACHE_DIR=$DATA/cache/pip TMPDIR=$DATA/tmp
+mkdir -p "$PIP_CACHE_DIR" "$TMPDIR"
+if [[ ! -x $VENV/bin/python ]]; then
+  python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' || { echo "需要 Python 3.10 以上，当前是 $(python3 -V)，请换 PyTorch 基础镜像"; exit 1; }
+  python3 -m venv "$VENV"
+fi
+# shellcheck disable=SC1091
+source "$VENV/bin/activate"
+pip install -U pip
 pip install -U "sglang[diffusion]" "huggingface_hub[cli]"
 
 echo "== 3/5 下载 MiniMax-H3 的 Ref2VA 分区（只下需要的一半，约 140GB，耗时较长）"
@@ -45,7 +56,10 @@ cat > "$DATA/start.sh" <<START
 #!/usr/bin/env bash
 # 后台启动 H3 服务，日志在 $DATA/logs/serve.log。看日志：tail -f $DATA/logs/serve.log
 if [ -f $PID_FILE ] && kill -0 "\$(cat $PID_FILE)" 2>/dev/null; then echo "服务已经在运行"; exit 0; fi
+source $VENV/bin/activate
 export HF_HOME=$HF_HOME HF_ENDPOINT=$HF_ENDPOINT HF_HUB_OFFLINE=1
+# torch.compile / Triton 的编译缓存也放数据盘，重启后不用重新编译
+export TORCHINDUCTOR_CACHE_DIR=$DATA/cache/inductor TRITON_CACHE_DIR=$DATA/cache/triton
 export MODEL=\${MODEL:-$MODELS/MiniMax-H3} LORA=\${LORA:-$MODELS/loras/$LORA_FILE}
 # setsid 让服务自成一个进程组，停止时连同 SGLang 派生的工作进程一起结束
 setsid nohup bash $SCRIPT_DIR/serve.sh > $DATA/logs/serve.log 2>&1 < /dev/null &
