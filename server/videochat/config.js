@@ -39,6 +39,13 @@ export const videoConfig = {
    * lightx2v Ref2V 8 步 LoRA 的模型卡写的是 12 / 3，也有资料写训练用的是 6 / 3，
    * 用 `npm run h3 -- bench --shifts 12,6` 对比后再定。仅 ref 模式。
    */
+  /**
+   * 是否带角色参考图 <Picture 1>（仅 ref 模式）。参考图会放大到短边 2048 再编码，token 不少；
+   * 首尾帧已经钉在定妆照上，去掉参考图也许长相照样稳，能省一截计算。H3_PORTRAIT=0 关闭，用 bench --portrait 1,0 对比
+   */
+  get usePortrait() {
+    return this.mode === 'ref' && env.H3_PORTRAIT !== '0'
+  },
   get flowShift() {
     return this.mode === 'ref' ? num(env.H3_FLOW_SHIFT, undefined) : undefined
   },

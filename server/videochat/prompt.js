@@ -50,14 +50,19 @@ export function writerSystemPrompt() {
 /**
  * 拼出给 H3 的提示词。
  * ref 模式里参考素材按条件顺序编号：<Picture 1> 是角色参考图，<Audio 1> 是声音样本（见 h3.js 的 conditions 顺序）。
+ * 不带参考图（H3_PORTRAIT=0）时只描述外貌，长相靠首尾帧的定妆照。
  */
+function who() {
+  return videoConfig.usePortrait ? `<Picture 1> 中的女生（${scene.look}）` : `${scene.look}。她`
+}
+
 export function h3Prompt({ line, emotion, action }) {
   const face = EMOTIONS[emotion] ?? EMOTIONS.neutral
   const act = action ? `，${action}` : ''
   const ref = videoConfig.mode === 'ref'
   return [
     `${scene.camera}。${scene.place}。`,
-    ref ? `<Picture 1> 中的女生（${scene.look}）` : `${scene.look}。她`,
+    who(),
     `看着镜头，${face}${act}，`,
     ref ? `用 <Audio 1> 里的声音（${scene.voice}）` : `用${scene.voice}`,
     `说：“${line}”`,
@@ -67,9 +72,8 @@ export function h3Prompt({ line, emotion, action }) {
 
 /** 等待时循环播放的待机视频的提示词（用 npm run h3 -- idle 生成） */
 export function idlePrompt() {
-  const who = videoConfig.mode === 'ref' ? `<Picture 1> 中的女生（${scene.look}）` : `${scene.look}。她`
   return (
-    `${scene.camera}。${scene.place}。${who}` +
+    `${scene.camera}。${scene.place}。${who()}` +
     `安静地看着镜头，轻轻呼吸，偶尔眨眼，嘴角带着淡淡的微笑，像在认真听对方说话，没有说话。` +
     `环境很安静，没有背景音乐。`
   )

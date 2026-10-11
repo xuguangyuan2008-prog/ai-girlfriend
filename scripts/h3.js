@@ -5,8 +5,8 @@
 //   npm run h3 -- warmup                          按每个时长档发一次请求，触发 torch.compile
 //   npm run h3 -- say "你好呀，今天过得怎么样？" [--emotion happy] [--action 挥挥手]
 //   npm run h3 -- consistency                    同一种子、不同台词生成 4 段，拼成对比图，看长相/场景会不会漂
-//   npm run h3 -- bench [--durations 4,6,8] [--edges 768,480] [--steps 8,12] [--shifts 12,6] [--repeat 2]
-//   （--steps / --shifts 只对 ref 模式有效，FastH3 固定 5 个 sigma 点）
+//   npm run h3 -- bench [--durations 4,6,8] [--edges 768,480] [--steps 8,12] [--shifts 12,6] [--portrait 1,0] [--repeat 2]
+//   （--steps / --shifts / --portrait 只对 ref 模式有效，FastH3 固定 5 个 sigma 点；--portrait 0 = 不带角色参考图）
 //   每组参数的视频保存在 media/，文件名打印在输出里，速度之外也要看画质和声音
 import { execFileSync } from 'node:child_process'
 import { copyFile, mkdir } from 'node:fs/promises'
@@ -32,6 +32,7 @@ const { values, positionals } = parseArgs({
     edges: { type: 'string' },
     shifts: { type: 'string' },
     repeat: { type: 'string' },
+    portrait: { type: 'string' },
   },
 })
 const [command, ...rest] = positionals
@@ -120,11 +121,14 @@ switch (command) {
     const stepsList = ref ? (values.steps || String(videoConfig.steps)).split(',').map(Number) : [5]
     // 空字符串表示用服务端默认（12）
     const shiftList = ref && values.shifts ? values.shifts.split(',') : [process.env.H3_FLOW_SHIFT ?? '']
+    const portraitList = ref && values.portrait ? values.portrait.split(',') : [process.env.H3_PORTRAIT ?? '1']
     const repeat = Number(values.repeat) || 2
     const rows = []
+    for (const portrait of portraitList)
     for (const edge of edges)
     for (const steps of stepsList)
     for (const shift of shiftList) {
+      process.env.H3_PORTRAIT = portrait
       process.env.H3_STEPS = String(steps)
       process.env.H3_SHORT_EDGE = String(edge)
       process.env.H3_FLOW_SHIFT = shift
@@ -133,7 +137,7 @@ switch (command) {
         const times = []
         for (let i = 0; i < repeat; i++) {
           // 第一次可能包含编译时间，单独列出
-          const r = await clip(`${edge}p steps=${steps} shift=${shift || '默认'} ${d}s #${i + 1}`, {
+          const r = await clip(`${edge}p steps=${steps} shift=${shift || '默认'} 参考图=${portrait === '0' ? '无' : '有'} ${d}s #${i + 1}`, {
             prompt: h3Prompt({ line, emotion: 'happy' }),
             durationSeconds: d,
             seed: 1000 + i,
@@ -142,13 +146,13 @@ switch (command) {
         }
         const warm = times.slice(1).length ? times.slice(1) : times
         const avg = warm.reduce((s, r) => s + r.totalSeconds, 0) / warm.length
-        rows.push({ edge, steps, shift: shift || '默认', seconds: d, first: times[0].totalSeconds, avg, ratio: avg / d })
+        rows.push({ portrait: portrait === '0' ? '无' : '有', edge, steps, shift: shift || '默认', seconds: d, first: times[0].totalSeconds, avg, ratio: avg / d })
       }
     }
-    console.log('\n短边  步数  偏移   时长   首次     稳定平均   等待/视频时长')
+    console.log('\n参考图  短边  步数  偏移   时长   首次     稳定平均   等待/视频时长')
     for (const r of rows) {
       console.log(
-        `${String(r.edge).padStart(4)}  ${String(r.steps).padStart(4)}  ${String(r.shift).padStart(4)}  ${String(r.seconds).padStart(3)}s  ${fmt(r.first).padStart(6)}s  ${fmt(r.avg).padStart(8)}s  ${r.ratio.toFixed(2).padStart(8)}x`,
+        `  ${r.portrait}    ${String(r.edge).padStart(4)}  ${String(r.steps).padStart(4)}  ${String(r.shift).padStart(4)}  ${String(r.seconds).padStart(3)}s  ${fmt(r.first).padStart(6)}s  ${fmt(r.avg).padStart(8)}s  ${r.ratio.toFixed(2).padStart(8)}x`,
       )
     }
     console.log(`\n模式：${videoConfig.mode}；画幅 ${videoConfig.aspectRatio}；时长档：${videoConfig.durationBuckets.join('/')}s`)

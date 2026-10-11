@@ -53,7 +53,7 @@ export function buildRequest({ prompt, durationSeconds, seed = videoConfig.seed,
     task: 'ref2va',
     // 顺序有语义：决定提示词里 <Picture 1> / <Audio 1> 的编号
     conditions: [
-      { type: 'image', uri: portrait, role: 'reference' },
+      ...(videoConfig.usePortrait ? [{ type: 'image', uri: portrait, role: 'reference' }] : []),
       ...(withVoice ? [{ type: 'audio', uri: voice, role: 'reference' }] : []),
       { type: 'image', uri: anchor, role: 'keyframe', frame_index: 0 },
       { type: 'image', uri: anchor, role: 'keyframe', frame_index: -1 },
