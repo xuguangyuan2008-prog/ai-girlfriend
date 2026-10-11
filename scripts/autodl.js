@@ -215,6 +215,9 @@ switch (command) {
     const assets = remote(c, `ls ${ASSETS.map((f) => `${DATA}/assets/${f}`).join(' ')}`, { capture: true })
     if (assets.status !== 0) console.log('提示：实例上还没有素材。服务启动后可以运行 npm run autodl -- make-assets 让 H3 生成一套，或者用 assets 命令上传自己的')
     if (remote(c, `test -x ${DATA}/start.sh`, { capture: true }).status !== 0) die('还没有完成准备，先运行 npm run autodl -- setup')
+    // serve.sh 每次都传最新的（启动参数改了不用重跑 setup）；Windows 上的 CRLF 换行转回 LF
+    upload(c, ['gpu/serve.sh'], `${DATA}/`)
+    remote(c, `sed -i 's/\\r$//' ${DATA}/serve.sh`)
 
     if (remote(c, `curl -s -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models`, { capture: true }).stdout === '200') {
       console.log('✓ 服务已经在运行了')

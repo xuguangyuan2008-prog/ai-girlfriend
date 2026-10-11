@@ -11,7 +11,7 @@ AutoDL 上的配置全部由你电脑上的 `npm run autodl` 命令自动完成�
 
 | 卡 | 说明 |
 |---|---|
-| **RTX PRO 6000 96GB**（约 ¥7.35/时，推荐） | Blackwell 架构，支持 FP8，算力完整。启动时自动开 FP8，并把文本编码器卸载到 CPU 内存（需要约 52GB，110GB 够用） |
+| **RTX PRO 6000 96GB**（约 ¥7.35/时，推荐） | Blackwell 架构，支持 FP8，算力完整。启动时自动开 FP8，主干常驻显卡，文本编码器（约 67GB）逐层卸载到内存（110GB 够用） |
 | RTX 6000D 84GB（约 ¥6.8/时） | 国内特供版，算力有削减。配置方式同上 |
 | H800 80GB（约 ¥10/时） | 算力更强。配置方式同上 |
 | A800 80GB | **不推荐**：Ampere 架构不支持 FP8，放不下 |
@@ -142,8 +142,6 @@ npm run dev                                                           # 打开 h
 - **AutoDL 换了登录地址或端口**（比如迁移实例后）：重新运行 `login`。
 - **本机 30000 端口被占用**：`LOCAL_PORT=30001 npm run autodl -- tunnel`，并把 `.env` 里的 `H3_BASE_URL` 改成 `http://localhost:30001`。
 - **启动时显存不足（OOM）**：把 `.env` 里的 `H3_SHORT_EDGE` 改成 640 或 480 再试；或者用 `QUANT=none npm run autodl -- start` 换大显存卡。
-- **想试试文本编码器常驻显存**（每条请求少一次搬运，96GB 卡可能放得下）：
-  `npm run autodl -- stop && OFFLOAD_TEXT=0 npm run autodl -- start`，报显存不足就改回去。
 - **下载很慢或失败**：模型默认从魔搭下载，用 `MODEL_SOURCE=hf` 换成 Hugging Face（`HF_ENDPOINT` 选镜像），`DL_WORKERS` 调并行数；pip 依赖默认走阿里云镜像，用 `PIP_INDEX_URL=<其它源>` 换。无卡模式的网速可能受限，可以在有卡模式下测一次速度再决定在哪个模式下载。
 - **装完 torch 报驱动太旧**：把 `npm run autodl -- setup-log` 里的报错发给开发者，需要换对应 CUDA 版本的 torch。
 - **想让手机也能用**：手机访问的是你电脑上的网页，不是 AutoDL，按主 README 的「在手机上测试」配置即可。AutoDL 的端口不要直接暴露到公网。

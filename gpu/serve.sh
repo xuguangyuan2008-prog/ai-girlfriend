@@ -13,7 +13,7 @@ MODE=${MODE:-ref}
 PORT=${PORT:-30000}
 GPUS=${GPUS:-1}
 QUANT=${QUANT:-auto}               # auto：单卡显存 < 120GB 时用在线 FP8；none：不量化；或指定 fp8
-OFFLOAD_TEXT=${OFFLOAD_TEXT:-auto} # 文本编码器 BF16 约 51GB；单卡显存 < 120GB 时卸载到 CPU
+OFFLOAD_TEXT=${OFFLOAD_TEXT:-auto} # 文本编码器 BF16 约 67GB；单卡显存 < 120GB 时逐层卸载（放内存，用时一层层搬上显卡）
 
 # ref 模式的加速 LoRA：lightx2v 专门为 Ref2VA 蒸馏的 8 步 768p 版本（diffusers 格式）
 LORA=${LORA:-lightx2v/Minimax-h3-Turbo}
@@ -53,7 +53,17 @@ else
 fi
 
 if [[ "$QUANT" != "none" ]]; then args+=(--quantization "$QUANT"); fi
-if [[ "$OFFLOAD_TEXT" == "1" ]]; then args+=(--text-encoder-cpu-offload); fi
+# 显式指定各部件放哪里。不写的话 SGLang 对 H3 的自动策略是：可用显存 < 120GB 就把主干逐层放到内存，
+# 不考虑 FP8 量化后只剩一半；再加上文本编码器整块放内存，96GB 卡 + 110GB 内存的实例会被系统 OOM 杀掉。
+# 这里：主干（FP8 约 31GB）和 VAE 常驻显卡；文本编码器逐层卸载（整块卸载用时要整块搬上显卡，会撑爆显存）
+if [[ "$MODE" != "fast" ]]; then
+  args+=(--dit-layerwise-offload false --dit-cpu-offload false --vae-cpu-offload false)
+  if [[ "$OFFLOAD_TEXT" == "1" ]]; then
+    args+=(--layerwise-offload-components text_encoder)
+  else
+    args+=(--text-encoder-cpu-offload false)
+  fi
+fi
 
 echo "显存 ${mem}MiB × ${GPUS}，模式 ${MODE}，量化 ${QUANT}，LoRA ${LORA}"
 echo "sglang serve ${args[*]}"
