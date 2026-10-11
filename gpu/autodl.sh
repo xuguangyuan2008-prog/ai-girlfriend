@@ -26,9 +26,19 @@ if ! command -v ffmpeg >/dev/null; then apt-get update -qq && apt-get install -y
 VENV=$DATA/venv
 export PIP_CACHE_DIR=$DATA/cache/pip TMPDIR=$DATA/tmp
 mkdir -p "$PIP_CACHE_DIR" "$TMPDIR"
-if [[ ! -x $VENV/bin/python ]]; then
+make_venv() { rm -rf "$VENV"; python3 -m venv "$VENV" >/dev/null 2>&1 && [[ -x $VENV/bin/pip ]]; }
+if [[ ! -x $VENV/bin/pip ]]; then   # 上次没建完整（比如缺 ensurepip）也会重建
   python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' || { echo "需要 Python 3.10 以上，当前是 $(python3 -V)，请换 PyTorch 基础镜像"; exit 1; }
-  python3 -m venv "$VENV"
+  pyver=$(python3 -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")')
+  if ! make_venv; then
+    echo "系统 Python 缺少 venv 组件，安装 python${pyver}-venv"
+    { apt-get update -qq && apt-get install -y -qq "python${pyver}-venv"; } || true
+    if ! make_venv; then
+      echo "改用 virtualenv 创建虚拟环境"
+      rm -rf "$VENV"
+      python3 -m pip install -q virtualenv && python3 -m virtualenv "$VENV"
+    fi
+  fi
 fi
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"
