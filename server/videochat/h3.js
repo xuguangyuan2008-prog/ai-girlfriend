@@ -10,7 +10,7 @@ import { videoConfig } from './config.js'
  *
  * ref 模式（默认，基础版 H3 + 8 步加速 LoRA）：ref2va
  *   - 参考图 <Picture 1> + 声音样本 <Audio 1>：保证每段视频长相、声音一致
- *   - 关键帧：第一帧和最后一帧都钉在同一张定妆照上，所有片段首尾相接、和待机视频无缝切换
+ *   - 可选关键帧（H3_KEYFRAMES）：首帧 / 首尾帧钉在定妆照上，切换无缝，但 8 步下会有重影，默认关闭
  * fast 模式（FastH3）：t2va，纯文字提示词，5 个 sigma 点。
  */
 
@@ -53,10 +53,11 @@ export function buildRequest({ prompt, durationSeconds, seed = videoConfig.seed,
     task: 'ref2va',
     // 顺序有语义：决定提示词里 <Picture 1> / <Audio 1> 的编号
     conditions: [
-      ...(videoConfig.usePortrait ? [{ type: 'image', uri: portrait, role: 'reference' }] : []),
+      // ref2va 至少要一个参考；不带声音（待机视频）又关了参考图时，参考图还是要带上
+      ...(videoConfig.usePortrait || !withVoice ? [{ type: 'image', uri: portrait, role: 'reference' }] : []),
       ...(withVoice ? [{ type: 'audio', uri: voice, role: 'reference' }] : []),
-      { type: 'image', uri: anchor, role: 'keyframe', frame_index: 0 },
-      { type: 'image', uri: anchor, role: 'keyframe', frame_index: -1 },
+      ...(videoConfig.keyframes !== 'none' ? [{ type: 'image', uri: anchor, role: 'keyframe', frame_index: 0 }] : []),
+      ...(videoConfig.keyframes === 'both' ? [{ type: 'image', uri: anchor, role: 'keyframe', frame_index: -1 }] : []),
     ],
     target,
     seed,

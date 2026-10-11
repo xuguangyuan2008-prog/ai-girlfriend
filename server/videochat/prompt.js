@@ -5,7 +5,7 @@ import { videoConfig } from './config.js'
  * 固定场景的描述。
  * - fast 模式没有参考图和声音样本，长相、场景、声音全靠这几段文字，所以要写得具体，而且每次一字不差。
  *   细节越具体（发型、衣服颜色、饰品、房间里的摆设、声音特点），不同片段之间越像同一个人、同一个房间。
- * - ref 模式下首尾帧钉在定妆照上，这里的描述要和定妆照一致。
+ * - ref 模式下长相来自参考图，房间和镜头主要靠这里的描述，要和定妆照一致。
  */
 export const scene = {
   look:
@@ -50,7 +50,7 @@ export function writerSystemPrompt() {
 /**
  * 拼出给 H3 的提示词。
  * ref 模式里参考素材按条件顺序编号：<Picture 1> 是角色参考图，<Audio 1> 是声音样本（见 h3.js 的 conditions 顺序）。
- * 不带参考图（H3_PORTRAIT=0）时只描述外貌，长相靠首尾帧的定妆照。
+ * 不带参考图（H3_PORTRAIT=0）时只描述外貌。
  */
 function who() {
   return videoConfig.usePortrait ? `<Picture 1> 中的女生（${scene.look}）` : `${scene.look}。她`

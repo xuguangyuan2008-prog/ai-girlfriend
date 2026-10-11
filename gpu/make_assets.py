@@ -1,8 +1,7 @@
 """由定妆照生成其余起步素材（在 AutoDL 实例上运行，由 npm run autodl -- make-assets 调用）。
 
-先从定妆照上部裁正方形 → portrait.png；再以它为参考图 <Picture 1>、首尾帧钉在 anchor.png 上，让她打个招呼，
-从视频里提取声音 → voice.wav。
-（服务只部署了 Ref2VA：至少要一个参考条件，钉首尾帧时也必须带参考，所以先裁出 portrait 当参考图。）
+先从定妆照上部裁正方形 → portrait.png；再以它为参考图 <Picture 1> 让她打个招呼，从视频里提取声音 → voice.wav。
+（服务只部署了 Ref2VA，至少要一个参考条件。不钉首尾帧：8 步 LoRA 下钉帧会有半透明重影。）
 
     python make_assets.py job.json
 """
@@ -31,11 +30,7 @@ def ff(*args):
 portrait = os.path.join(assets, "portrait.png")
 ff("-i", anchor, "-vf", "crop=iw:iw:0:ih*0.08", portrait)
 
-conditions = [
-    {"type": "image", "uri": portrait, "role": "reference"},
-    {"type": "image", "uri": anchor, "role": "keyframe", "frame_index": 0},
-    {"type": "image", "uri": anchor, "role": "keyframe", "frame_index": -1},
-]
+conditions = [{"type": "image", "uri": portrait, "role": "reference"}]
 body = {
     "prompt": job["prompt"],
     "task": "ref2va",
@@ -59,7 +54,7 @@ def call(method, path, data=None):
         return r.read()
 
 
-print("首尾帧钉在定妆照上，生成一段她打招呼的视频")
+print("以定妆照的脸部为参考，生成一段她打招呼的视频")
 try:
     j = json.loads(call("POST", "/v1/videos", body))
 except urllib.error.HTTPError as e:

@@ -2,7 +2,7 @@ import './style.css'
 
 /**
  * 视频聊天：发一句话，她回一段视频。
- * 等待时循环播放待机视频；回复视频的首尾帧和待机视频是同一张定妆照，切换时几乎看不出接缝。
+ * 等待时循环播放待机视频；回复视频和待机视频是同一个人、同一个房间，切换时用交叉淡入淡出盖住接缝。
  */
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T

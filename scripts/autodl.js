@@ -236,7 +236,7 @@ switch (command) {
   }
 
   case 'make-assets': {
-    // 由一张定妆照生成其余素材：首尾帧钉在定妆照上，让她打个招呼 → 提取声音、从定妆照裁脸。
+    // 由一张定妆照生成其余素材：从定妆照裁脸当参考图，让她打个招呼 → 提取声音。
     // （只部署了 Ref2VA，至少要一个参考条件；纯文字的 t2va 由 FL2VA 分区负责，我们没下载，所以定妆照要先用文生图做好）
     const c = loadConn()
     const out = args.find((a, i) => !a.startsWith('--') && !['--anchor', '--seed'].includes(args[i - 1])) || 'my-assets'

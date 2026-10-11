@@ -18,7 +18,7 @@ export const videoConfig = {
 
   /**
    * ref（默认）：基础版 H3 的 ref2va + lightx2v 的 Ref2V 8 步加速 LoRA。
-   *       参考图 + 声音样本 + 首尾帧钉住定妆照，长相、声音、场景都稳定；8 步比原版 50 步快约 6 倍。
+   *       参考图 + 声音样本保证长相、声音一致；8 步比原版 50 步快约 6 倍。
    * fast：社区蒸馏的 FastH3（4 次前向 + 稀疏注意力）。只支持文生视频，不能传参考图 / 声音 / 首尾帧，
    *       长相和声音靠固定的文字描述 + 固定种子维持，会有漂移，能接受漂移时最快。
    * 要和 GPU 上启动的模型对应（gpu/serve.sh 的 MODE）。
@@ -36,10 +36,19 @@ export const videoConfig = {
   },
   /**
    * 是否带角色参考图 <Picture 1>（仅 ref 模式）。参考图会放大到短边 2048 再编码，token 不少；
-   * 首尾帧已经钉在定妆照上，去掉参考图也许长相照样稳，能省一截计算。H3_PORTRAIT=0 关闭，用 bench --portrait 1,0 对比
+   * 去掉后长相只靠文字描述（和首尾帧，如果开了），能省一截计算但容易漂。H3_PORTRAIT=0 关闭，用 bench --portrait 1,0 对比
    */
   get usePortrait() {
     return this.mode === 'ref' && env.H3_PORTRAIT !== '0'
+  },
+  /**
+   * 是否把首尾帧钉在定妆照上（仅 ref 模式）：none（默认）/ first / both。
+   * 钉住后回复视频和待机视频首尾相接、切换无缝，但实测配 8 步加速 LoRA 时，她一动画面就出现半透明重影，
+   * 只用参考图时干净自然，所以默认不钉，切换靠前端的交叉淡入淡出。用 npm run autodl -- try 对比。
+   */
+  get keyframes() {
+    const v = env.H3_KEYFRAMES
+    return this.mode === 'ref' && (v === 'first' || v === 'both') ? v : 'none'
   },
   /**
    * 视频 / 音频的时间步偏移（flow shift），仅 ref 模式。
