@@ -100,7 +100,8 @@ else
 fi
 rm -rf "$PIP_CACHE_DIR" "$UV_CACHE_DIR"              # 装好了，下载缓存（几 GB）留着没用
 
-# 下载：download <魔搭仓库> <HF 仓库> <目标目录> <文件或 --include 参数...>
+# 下载：download <魔搭仓库> <HF 仓库> <目标目录> --include <文件或通配符...>
+# 魔搭只有在 --include（快照）模式下才知道文件大小，大文件才会分段并行下载；直接写文件名会退回单连接
 download() {
   local ms=$1 hf=$2 dir=$3; shift 3
   if [[ $MODEL_SOURCE == hf ]]; then
@@ -122,7 +123,7 @@ fi
 
 echo "== 4/5 下载 lightx2v Ref2V 8 步加速 LoRA（约 1.4GB）"
 LORA_FILE=minimax_h3_ref2v_turbo_8step_v1.0_768p_bf16.safetensors
-download lightx2v/Minimax-h3-Turbo lightx2v/Minimax-h3-Turbo "$MODELS/loras" "$LORA_FILE"
+download lightx2v/Minimax-h3-Turbo lightx2v/Minimax-h3-Turbo "$MODELS/loras" --include "$LORA_FILE"
 
 echo "== 5/5 生成启动 / 停止脚本 $DATA/start.sh、$DATA/stop.sh"
 mkdir -p "$DATA/assets" "$DATA/logs"
