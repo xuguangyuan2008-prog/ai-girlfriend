@@ -35,22 +35,25 @@ export const videoConfig = {
     return num(env.H3_STEPS, 8)
   },
   /**
-   * 视频 / 音频的时间步偏移（flow shift）。不填用 H3 默认的 12 / 3。
-   * lightx2v Ref2V 8 步 LoRA 的模型卡写的是 12 / 3，也有资料写训练用的是 6 / 3，
-   * 用 `npm run h3 -- bench --shifts 12,6` 对比后再定。仅 ref 模式。
-   */
-  /**
    * 是否带角色参考图 <Picture 1>（仅 ref 模式）。参考图会放大到短边 2048 再编码，token 不少；
    * 首尾帧已经钉在定妆照上，去掉参考图也许长相照样稳，能省一截计算。H3_PORTRAIT=0 关闭，用 bench --portrait 1,0 对比
    */
   get usePortrait() {
     return this.mode === 'ref' && env.H3_PORTRAIT !== '0'
   },
+  /**
+   * 视频 / 音频的时间步偏移（flow shift），仅 ref 模式。
+   * lightx2v 官方给 8 步 768p Ref2V LoRA 的推荐是 6 / 3（训练时用的值）；H3 原版多步采样的默认是 12 / 3。
+   * 8 步时用 12 实测画面会糊、有半透明重影，所以步数少（用加速 LoRA）时默认 6 / 3，步数多时交给服务端默认。
+   * 用 H3_FLOW_SHIFT / H3_AUDIO_FLOW_SHIFT 覆盖，`npm run h3 -- bench --shifts 6,12` 对比。
+   */
   get flowShift() {
-    return this.mode === 'ref' ? num(env.H3_FLOW_SHIFT, undefined) : undefined
+    if (this.mode !== 'ref') return undefined
+    return num(env.H3_FLOW_SHIFT, this.steps <= 12 ? 6 : undefined)
   },
   get audioFlowShift() {
-    return this.mode === 'ref' ? num(env.H3_AUDIO_FLOW_SHIFT, undefined) : undefined
+    if (this.mode !== 'ref') return undefined
+    return num(env.H3_AUDIO_FLOW_SHIFT, this.steps <= 12 ? 3 : undefined)
   },
   get shortEdge() {
     return num(env.H3_SHORT_EDGE, 768) // 768 是官方验证过的；480 约快 2 倍以上，画质需实测

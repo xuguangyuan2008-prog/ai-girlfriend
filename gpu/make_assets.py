@@ -43,6 +43,8 @@ body = {
     "target": {"short_edge": job["short_edge"], "aspect_ratio": "9:16", "duration_seconds": job["seconds"]},
     "seed": job["seed"],
     "num_inference_steps": job["steps"],
+    "flow_shift": job["flow_shift"],
+    "audio_flow_shift": job["audio_flow_shift"],
 }
 
 

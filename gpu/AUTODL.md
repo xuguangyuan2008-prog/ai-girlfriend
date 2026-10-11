@@ -119,7 +119,7 @@ npm run autodl -- tunnel
 npm run h3 -- say "哈哈，真的假的？快跟我说说！" --emotion surprised   # 先生成一段看看效果
 npm run h3 -- warmup                                                  # 预热各个时长档
 npm run h3 -- idle                                                    # 生成待机循环视频
-npm run h3 -- bench --durations 4,6,8 --steps 8 --shifts 12,6         # 测速度、对比参数
+npm run h3 -- bench --durations 4,6,8 --steps 8 --shifts 6,12         # 测速度、对比参数
 npm run dev                                                           # 打开 http://localhost:5173/video.html 开始聊天
 ```
 

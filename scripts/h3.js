@@ -5,7 +5,7 @@
 //   npm run h3 -- warmup                          按每个时长档发一次请求，触发 torch.compile
 //   npm run h3 -- say "你好呀，今天过得怎么样？" [--emotion happy] [--action 挥挥手]
 //   npm run h3 -- consistency                    同一种子、不同台词生成 4 段，拼成对比图，看长相/场景会不会漂
-//   npm run h3 -- bench [--durations 4,6,8] [--edges 768,480] [--steps 8,12] [--shifts 12,6] [--portrait 1,0] [--repeat 2]
+//   npm run h3 -- bench [--durations 4,6,8] [--edges 768,480] [--steps 8,12] [--shifts 6,12] [--portrait 1,0] [--repeat 2]
 //   （--steps / --shifts / --portrait 只对 ref 模式有效，FastH3 固定 5 个 sigma 点；--portrait 0 = 不带角色参考图）
 //   每组参数的视频保存在 media/，文件名打印在输出里，速度之外也要看画质和声音
 import { execFileSync } from 'node:child_process'

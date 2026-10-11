@@ -68,7 +68,7 @@ npm run h3 -- idle            # 生成待机循环视频 → public/video/idle.m
 npm run h3 -- say "哈哈，真的假的？快跟我说说！" --emotion surprised
 
 # 第一次部署建议跑这两组，对比速度和画质 / 声音
-npm run h3 -- bench --durations 4,6,8 --steps 8 --shifts 12,6   # 时间步偏移：模型卡写 12，也有资料写训练用 6
+npm run h3 -- bench --durations 4,6,8 --steps 8 --shifts 6,12   # 时间步偏移：lightx2v 官方推荐 6（默认），社区常用 12
 npm run h3 -- bench --durations 6 --steps 8,12                   # 8 步不够好时，多几步换画质
 ```
 

@@ -265,6 +265,9 @@ switch (command) {
       seconds: 8,
       short_edge: Number(process.env.H3_SHORT_EDGE) || 768,
       steps: Number(process.env.H3_STEPS) || 8,
+      // lightx2v 8 步 Ref2V LoRA 官方推荐的偏移（和 server/videochat/config.js 的默认一致）
+      flow_shift: Number(process.env.H3_FLOW_SHIFT) || 6,
+      audio_flow_shift: Number(process.env.H3_AUDIO_FLOW_SHIFT) || 3,
       prompt:
         `${scene.camera}。${scene.place}。<Picture 1> 中的女生（${scene.look}）看着镜头，表情自然放松，开心地微笑，` +
         `用${scene.voice}说：“${line}”说完后继续微笑着看着镜头。只有她一个人说话，没有背景音乐。`,
