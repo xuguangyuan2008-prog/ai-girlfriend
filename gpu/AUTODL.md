@@ -71,19 +71,26 @@ npm run autodl -- setup --shutdown
 
 安装在实例后台运行，**按 Ctrl+C 或关掉电脑都不会中断**，之后用 `npm run autodl -- setup-log` 接着看进度。中途失败的话，重新运行 `setup` 会断点续传。
 
-## 3. 上传角色素材
+## 3. 角色素材
 
-在电脑上建一个文件夹，放三个文件（要求见 [README 第 4 节](README.md#4-准备素材一致性模式)），然后上传：
+需要三个文件：`anchor.png`（9:16 定妆照，就是视频画面本身）、`portrait.png`（正方形脸部特写）、`voice.wav`（6~10 秒干净人声）。要求见 [README 第 4 节](README.md#4-准备素材一致性模式)。
+
+**省事的办法：让 H3 自己生成**（要在第 4 步服务启动之后运行）：
+
+```bash
+npm run autodl -- make-assets
+```
+
+它按 `server/videochat/prompt.js` 里 `scene` 的外貌、房间、声音描述，生成一段她打招呼的视频，第一帧当定妆照，上部裁正方形当脸部特写，提取声音当声音样本，直接放到实例上，同时下载一份到本机 `my-assets/` 给你看。不满意就换种子重来（`--regen --seed 8`），或者改 `scene` 的描述。
+如果 H3 不接受纯文字请求，或者你想要更精致的定妆照，就先用文生图工具（即梦、豆包等）按 `scene` 的描述做一张 9:16 竖图，再运行 `npm run autodl -- make-assets --anchor 图片.png`，只让 H3 生成声音和裁剪。
+
+**用自己的素材**：在电脑上建一个文件夹放这三个文件，然后上传：
 
 ```bash
 npm run autodl -- assets ./my-assets
 ```
 
-- `anchor.png`：9:16 定妆照，就是视频画面本身；
-- `portrait.png`：正方形脸部特写；
-- `voice.wav`：6~10 秒干净人声。**只用你有权使用的声音**。
-
-角色的文字描述在 `server/videochat/prompt.js` 的 `scene` 里，要和定妆照对得上。
+声音**只用你有权使用的**。角色的文字描述在 `server/videochat/prompt.js` 的 `scene` 里，要和定妆照对得上。
 
 ## 4. 有卡开机，启动服务
 

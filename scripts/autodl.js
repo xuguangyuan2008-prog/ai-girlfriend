@@ -5,6 +5,7 @@
 //   npm run autodl -- setup-stop          停止正在进行的安装（重新运行 setup 会接着下）
 //   npm run autodl -- assets ./my-assets  上传 anchor.png / portrait.png / voice.wav
 //   npm run autodl -- start               启动 H3 服务，等到就绪（需要有卡模式开机）
+//   npm run autodl -- make-assets [--seed 7] [--regen] [--anchor 图片.png]  让 H3 生成定妆照、脸部特写和声音样本（服务运行时）
 //   npm run autodl -- tunnel              建立 SSH 隧道，把实例的 30000 端口映射到本机（保持运行）
 //   npm run autodl -- status              查看 GPU、磁盘、服务状态
 //   npm run autodl -- logs                实时查看服务日志
@@ -58,6 +59,20 @@ function upload(c, files, dest) {
     stdio: 'inherit',
   })
   if (r.status !== 0) die('上传失败')
+}
+
+function download(c, remoteFiles, localDir) {
+  mkdirSync(localDir, { recursive: true })
+  const r = spawnSync('scp', ['-P', String(c.port), '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes', ...remoteFiles.map((f) => `${c.user}@${c.host}:${f}`), localDir], {
+    stdio: 'inherit',
+  })
+  if (r.status !== 0) die('下载失败')
+}
+
+/** 第一个 --name 后面的值 */
+const opt = (name) => {
+  const i = args.indexOf(name)
+  return i >= 0 ? args[i + 1] : undefined
 }
 
 /** 把 H3 相关的配置写进本地 .env（只补缺的，不覆盖已有的） */
@@ -198,7 +213,7 @@ switch (command) {
     if (!gpu.stdout.trim()) die('实例上没有 GPU，可能是无卡模式开机。请在控制台关机后用正常模式开机')
     console.log(`GPU：${gpu.stdout.trim()}`)
     const assets = remote(c, `ls ${ASSETS.map((f) => `${DATA}/assets/${f}`).join(' ')}`, { capture: true })
-    if (assets.status !== 0) die('实例上缺少素材，先运行 npm run autodl -- assets <素材目录>')
+    if (assets.status !== 0) console.log('提示：实例上还没有素材。服务启动后可以运行 npm run autodl -- make-assets 让 H3 生成一套，或者用 assets 命令上传自己的')
     if (remote(c, `test -x ${DATA}/start.sh`, { capture: true }).status !== 0) die('还没有完成准备，先运行 npm run autodl -- setup')
 
     if (remote(c, `curl -s -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models`, { capture: true }).stdout === '200') {
@@ -211,6 +226,51 @@ switch (command) {
       console.log('\n✓ H3 服务已就绪')
     }
     console.log('下一步：另开一个终端运行 npm run autodl -- tunnel，保持运行；再运行 npm run h3 -- say "你好呀"')
+    break
+  }
+
+  case 'make-assets': {
+    // 用 H3 自己生成起步素材：文字描述 → 一段打招呼的视频 → 截第一帧当定妆照、裁脸、提取声音
+    const c = loadConn()
+    const out = args.find((a, i) => !a.startsWith('--') && !['--anchor', '--seed'].includes(args[i - 1])) || 'my-assets'
+    if (remote(c, `curl -s -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models`, { capture: true }).stdout !== '200') {
+      die('H3 服务没有在运行。先用有卡模式开机，再运行 npm run autodl -- start')
+    }
+    const anchorFile = opt('--anchor')
+    if (anchorFile) {
+      if (!existsSync(anchorFile)) die(`找不到 ${anchorFile}`)
+      remote(c, `mkdir -p ${DATA}/assets`)
+      upload(c, [anchorFile], `${DATA}/assets/anchor.png`)
+    }
+    const { scene } = await import('../server/videochat/prompt.js')
+    const line = '嗨，你终于来啦！我今天一直在等你呢，快跟我说说，你今天过得怎么样？'
+    const job = {
+      base: `http://127.0.0.1:${PORT}`,
+      dir: `${DATA}/assets`,
+      regen: args.includes('--regen') && !anchorFile,
+      seed: Number(opt('--seed')) || 7,
+      seconds: 8,
+      short_edge: Number(process.env.H3_SHORT_EDGE) || 768,
+      steps: Number(process.env.H3_STEPS) || 8,
+      prompt:
+        `${scene.camera}。${scene.place}。${scene.look}。她看着镜头，表情自然放松，开心地微笑，` +
+        `用${scene.voice}说：“${line}”说完后继续微笑着看着镜头。只有她一个人说话，没有背景音乐。`,
+    }
+    upload(c, ['gpu/make_assets.py'], `${DATA}/`)
+    const b64 = Buffer.from(JSON.stringify(job)).toString('base64')
+    const r = remote(c, `echo ${b64} | base64 -d > ${DATA}/make_assets.json && ${DATA}/venv/bin/python ${DATA}/make_assets.py ${DATA}/make_assets.json`)
+    if (r.status !== 0) {
+      die(
+        '生成没有成功（看上面的输出）。如果是 H3 不接受纯文字请求，可以先用文生图工具（即梦、豆包等）做一张 9:16 的定妆照，然后：\n' +
+          `  npm run autodl -- make-assets --anchor 定妆照.png`,
+      )
+    }
+    download(c, [...ASSETS, 'make_assets.mp4'].map((f) => `${DATA}/assets/${f}`), out)
+    console.log(`\n✓ 素材已经在实例上就位，也下载到了本机 ${out}/ 方便查看：`)
+    console.log('  anchor.png 定妆照 / portrait.png 脸部裁剪 / voice.wav 声音 / make_assets.mp4 原始视频')
+    console.log('不满意的话：换个种子重新生成 npm run autodl -- make-assets --regen --seed 8；')
+    console.log('或者用自己做的定妆照 npm run autodl -- make-assets --anchor 图片.png；')
+    console.log('也可以改 server/videochat/prompt.js 里 scene 的外貌描述再生成。')
     break
   }
 
