@@ -6,6 +6,7 @@
 //   npm run autodl -- assets ./my-assets  上传 anchor.png / portrait.png / voice.wav
 //   npm run autodl -- start               启动 H3 服务，等到就绪（需要有卡模式开机）
 //   npm run autodl -- make-assets --anchor 定妆照.png [--seed 7]  由定妆照让 H3 生成声音样本、裁出脸部特写（服务运行时）
+//   npm run autodl -- try [--seed 7]        画质排查：一次生成几个只差一个变量的版本，拼成 compare.mp4 对比
 //   npm run autodl -- tunnel              建立 SSH 隧道，把实例的 30000 端口映射到本机（保持运行）
 //   npm run autodl -- status              查看 GPU、磁盘、服务状态
 //   npm run autodl -- logs                实时查看服务日志
@@ -285,6 +286,51 @@ switch (command) {
     console.log('  anchor.png 定妆照 / portrait.png 脸部裁剪 / voice.wav 声音 / make_assets.mp4 原始视频')
     console.log('声音不满意：换个种子重新生成 npm run autodl -- make-assets --seed 8（会沿用实例上的定妆照）；')
     console.log('换定妆照：npm run autodl -- make-assets --anchor 新图片.png。声音的描述在 server/videochat/prompt.js 的 scene.voice。')
+    break
+  }
+
+  case 'try': {
+    // 画质排查：同一个种子、同一句台词，一次生成几个只差一个变量的版本，再横向拼成 compare.mp4
+    const c = loadConn()
+    const out = args.find((a) => !a.startsWith('--')) || 'my-assets/try'
+    if (remote(c, `curl -s -m 5 -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models`, { capture: true }).stdout !== '200') {
+      die('H3 服务没有在运行。先用有卡模式开机，再运行 npm run autodl -- start')
+    }
+    if (remote(c, `test -f ${DATA}/assets/anchor.png && test -f ${DATA}/assets/portrait.png`, { capture: true }).status !== 0) {
+      die('实例上还没有 anchor.png / portrait.png，先运行 npm run autodl -- make-assets --anchor 定妆照.png')
+    }
+    const { scene } = await import('../server/videochat/prompt.js')
+    const A = `${DATA}/assets/anchor.png`
+    const ref = { type: 'image', uri: `${DATA}/assets/portrait.png`, role: 'reference' }
+    const kf0 = { type: 'image', uri: A, role: 'keyframe', frame_index: 0 }
+    const kfEnd = { type: 'image', uri: A, role: 'keyframe', frame_index: -1 }
+    const shift = { flow_shift: 6, audio_flow_shift: 3 }
+    const variants = [
+      { name: 'A_base', desc: '参考图 + 首尾帧，8 步', conditions: [ref, kf0, kfEnd], steps: 8, ...shift },
+      { name: 'B_first_frame_only', desc: '参考图 + 首帧，8 步', conditions: [ref, kf0], steps: 8, ...shift },
+      { name: 'C_no_keyframes', desc: '只有参考图，8 步', conditions: [ref], steps: 8, ...shift },
+      { name: 'D_16_steps', desc: '参考图 + 首尾帧，16 步', conditions: [ref, kf0, kfEnd], steps: 16, ...shift },
+    ]
+    const line = '嗨，你终于来啦！我今天一直在等你呢，快跟我说说，你今天过得怎么样？'
+    const job = {
+      base: `http://127.0.0.1:${PORT}`,
+      out: `${DATA}/try`,
+      seed: Number(opt('--seed')) || 7,
+      seconds: 8,
+      short_edge: Number(process.env.H3_SHORT_EDGE) || 768,
+      prompt:
+        `${scene.camera}。${scene.place}。<Picture 1> 中的女生（${scene.look}）看着镜头，表情自然放松，开心地微笑，` +
+        `用${scene.voice}说：“${line}”说完后继续微笑着看着镜头。只有她一个人说话，没有背景音乐。`,
+      variants,
+    }
+    console.log('依次生成：' + variants.map((v) => `${v.name}（${v.desc}）`).join('、'))
+    upload(c, ['gpu/try_h3.py'], `${DATA}/`)
+    const b64 = Buffer.from(JSON.stringify(job)).toString('base64')
+    remote(c, `rm -rf ${DATA}/try && echo ${b64} | base64 -d > ${DATA}/try_h3.json && ${DATA}/venv/bin/python ${DATA}/try_h3.py ${DATA}/try_h3.json`)
+    const made = remote(c, `ls ${DATA}/try/*.mp4 2>/dev/null`, { capture: true }).stdout.split('\n').filter(Boolean)
+    if (!made.length) die('一个都没有生成出来，看上面的输出')
+    download(c, made, out)
+    console.log(`\n✓ 已下载到 ${out}/。compare.mp4 是横向拼接的对比，从左到右依次是 ${variants.map((v) => v.name).join('、')}`)
     break
   }
 
