@@ -136,15 +136,22 @@ switch (command) {
 
   case 'setup': {
     const c = loadConn()
-    remote(c, `mkdir -p ${DATA}/logs ${DATA}/assets`)
-    upload(c, ['gpu/serve.sh', 'gpu/autodl.sh'], `${DATA}/`)
-    // Windows 上的 Git 可能把换行转成 CRLF，bash 不认，上传后统一转回 LF
-    remote(c, `sed -i 's/\\r$//' ${DATA}/serve.sh ${DATA}/autodl.sh`)
-    // 在实例上后台运行，SSH 断开也不影响；这里只是跟着看日志，按 Ctrl+C 不会中断安装
-    const extra = ['NEED_GB', 'HF_ENDPOINT'].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`).join(' ')
-    const r = remote(c, `cd ${DATA} && ${extra} nohup bash autodl.sh > logs/setup.log 2>&1 & echo $!`, { capture: true })
-    const pid = r.stdout.trim()
-    console.log(`安装和下载已在实例后台运行（PID ${pid}），下载约 140GB，需要较长时间。`)
+    const setupPid = `${DATA}/logs/setup.pid`
+    // 上一次安装还在跑：不能重新上传（会改写正在执行的脚本），直接接着看日志
+    let pid = remote(c, `p=$(cat ${setupPid} 2>/dev/null) && kill -0 "$p" 2>/dev/null && echo "$p"`, { capture: true }).stdout.trim()
+    if (pid) {
+      console.log(`安装已经在实例后台运行（PID ${pid}），接着显示进度。按 Ctrl+C 只是不看了，安装会继续。\n`)
+    } else {
+      remote(c, `mkdir -p ${DATA}/logs ${DATA}/assets`)
+      upload(c, ['gpu/serve.sh', 'gpu/autodl.sh'], `${DATA}/`)
+      // Windows 上的 Git 可能把换行转成 CRLF，bash 不认，上传后统一转回 LF
+      remote(c, `sed -i 's/\\r$//' ${DATA}/serve.sh ${DATA}/autodl.sh`)
+      // 在实例上后台运行，SSH 断开也不影响；这里只是跟着看日志，按 Ctrl+C 不会中断安装
+      const extra = ['NEED_GB', 'HF_ENDPOINT'].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`).join(' ')
+      const r = remote(c, `cd ${DATA} && ${extra} nohup bash autodl.sh > logs/setup.log 2>&1 < /dev/null & echo $! | tee ${setupPid}`, { capture: true })
+      pid = r.stdout.trim()
+      console.log(`安装和下载已在实例后台运行（PID ${pid}），下载约 140GB，需要较长时间。`)
+    }
     console.log(`这里实时显示进度，按 Ctrl+C 只是不看了，安装会继续；之后可以再运行 npm run autodl -- setup-log 接着看。\n`)
     remote(c, `tail --pid=${pid} -n +1 -f ${DATA}/logs/setup.log`)
     remote(c, `tail -n 4 ${DATA}/logs/setup.log`, { capture: true }).stdout.includes('准备完成')
