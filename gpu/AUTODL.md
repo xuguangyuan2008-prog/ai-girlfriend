@@ -41,7 +41,7 @@ H3 相关的两项（`H3_BASE_URL`、`H3_ASSET_DIR`）会在下面的第 1 步�
 ## 1. 租卡，连上实例
 
 1. AutoDL 控制台 → 租新实例 → 选 RTX PRO 6000。镜像随意，只要 Python ≥ 3.10（基础镜像的 PyTorch 最干净；ComfyUI 之类的社区镜像也行）。SGLang 会装进数据盘上的独立虚拟环境，不占系统盘，也不影响镜像自带的环境。
-2. **把数据盘扩容到 200GB 以上**：只下载 Ref2VA 部分也要约 140GB。
+2. **把数据盘扩容到 200GB 以上**：只下载 Ref2VA 部分也要约 144GB。
 3. 用「**无卡模式**」开机。装依赖、下载模型都不需要 GPU，无卡模式便宜很多。
 4. 在实例列表里复制「登录指令」和密码，在你电脑的项目目录里运行：
 
@@ -60,10 +60,10 @@ npm run autodl -- setup
 这一步会在实例上：
 - 检查磁盘空间；
 - 安装 ffmpeg 和 SGLang；
-- 通过国内镜像**只下载 H3 的 Ref2VA 部分**和 8 步加速 LoRA；
+- 从魔搭社区**只下载 H3 的 Ref2VA 部分**和 8 步加速 LoRA（AutoDL 上实测魔搭比 Hugging Face 镜像快得多）；
 - 生成启动和停止脚本。
 
-下载约 140GB，要一段时间。安装在实例后台运行，**按 Ctrl+C 或关掉电脑都不会中断**，之后用 `npm run autodl -- setup-log` 接着看进度。中途失败的话，重新运行 `setup` 会断点续传。
+下载约 144GB，要一段时间。安装在实例后台运行，**按 Ctrl+C 或关掉电脑都不会中断**，之后用 `npm run autodl -- setup-log` 接着看进度。中途失败的话，重新运行 `setup` 会断点续传。
 
 ## 3. 上传角色素材
 
@@ -130,6 +130,6 @@ npm run dev                                                           # 打开 h
 - **启动时显存不足（OOM）**：把 `.env` 里的 `H3_SHORT_EDGE` 改成 640 或 480 再试；或者用 `QUANT=none npm run autodl -- start` 换大显存卡。
 - **想试试文本编码器常驻显存**（每条请求少一次搬运，96GB 卡可能放得下）：
   `npm run autodl -- stop && OFFLOAD_TEXT=0 npm run autodl -- start`，报显存不足就改回去。
-- **下载很慢或失败**：模型用 `HF_ENDPOINT=<其它镜像> npm run autodl -- setup` 换下载源；pip 依赖默认走阿里云镜像，用 `PIP_INDEX_URL=<其它源>` 换。
+- **下载很慢或失败**：模型默认从魔搭下载，用 `MODEL_SOURCE=hf` 换成 Hugging Face（`HF_ENDPOINT` 选镜像），`DL_WORKERS` 调并行数；pip 依赖默认走阿里云镜像，用 `PIP_INDEX_URL=<其它源>` 换。无卡模式的网速可能受限，可以在有卡模式下测一次速度再决定在哪个模式下载。
 - **装完 torch 报驱动太旧**：把 `npm run autodl -- setup-log` 里的报错发给开发者，需要换对应 CUDA 版本的 torch。
 - **想让手机也能用**：手机访问的是你电脑上的网页，不是 AutoDL，按主 README 的「在手机上测试」配置即可。AutoDL 的端口不要直接暴露到公网。

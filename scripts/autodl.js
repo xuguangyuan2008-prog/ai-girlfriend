@@ -147,10 +147,10 @@ switch (command) {
       // Windows 上的 Git 可能把换行转成 CRLF，bash 不认，上传后统一转回 LF
       remote(c, `sed -i 's/\\r$//' ${DATA}/serve.sh ${DATA}/autodl.sh`)
       // 在实例上后台运行，SSH 断开也不影响；这里只是跟着看日志，按 Ctrl+C 不会中断安装
-      const extra = ['NEED_GB', 'HF_ENDPOINT', 'PIP_INDEX_URL'].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`).join(' ')
+      const extra = ['NEED_GB', 'HF_ENDPOINT', 'PIP_INDEX_URL', 'MODEL_SOURCE', 'DL_WORKERS'].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`).join(' ')
       const r = remote(c, `cd ${DATA} && ${extra} nohup bash autodl.sh > logs/setup.log 2>&1 < /dev/null & echo $! | tee ${setupPid}`, { capture: true })
       pid = r.stdout.trim()
-      console.log(`安装和下载已在实例后台运行（PID ${pid}），下载约 140GB，需要较长时间。`)
+      console.log(`安装和下载已在实例后台运行（PID ${pid}），下载约 144GB，需要较长时间。`)
     }
     console.log(`这里实时显示进度，按 Ctrl+C 只是不看了，安装会继续；之后可以再运行 npm run autodl -- setup-log 接着看。\n`)
     remote(c, `tail --pid=${pid} -n +1 -f ${DATA}/logs/setup.log`)

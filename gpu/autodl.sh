@@ -7,8 +7,11 @@ set -euo pipefail
 
 DATA=${DATA:-/root/autodl-tmp}                       # AutoDL 数据盘，系统盘只有 30GB，不要往那里放模型
 MODELS=$DATA/models
-export HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}   # 国内用镜像下载 Hugging Face
-export HF_HOME=$DATA/hf                              # 缓存也放数据盘
+# 模型下载源：modelscope（魔搭，默认）或 hf（Hugging Face）。AutoDL 上实测魔搭快得多
+MODEL_SOURCE=${MODEL_SOURCE:-modelscope}
+export HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}   # 用 hf 时走国内镜像
+export HF_HOME=$DATA/hf MODELSCOPE_CACHE=$DATA/cache/modelscope   # 缓存也放数据盘
+DL_WORKERS=${DL_WORKERS:-8}                          # 并行下载的文件数
 NEED_GB=${NEED_GB:-170}
 
 echo "== 1/5 检查数据盘空间"
@@ -46,10 +49,22 @@ source "$VENV/bin/activate"
 export PIP_INDEX_URL=${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
 echo "pip 源：$PIP_INDEX_URL"
 pip install -U pip
-pip install -U "sglang[diffusion]" "huggingface_hub[cli]"
+pip install -U "sglang[diffusion]" "huggingface_hub[cli]" modelscope
+rm -rf "$PIP_CACHE_DIR"                              # 装好了，pip 下载缓存（几 GB）留着没用
 
-echo "== 3/5 下载 MiniMax-H3 的 Ref2VA 分区（只下需要的一半，约 140GB，耗时较长）"
-hf download MiniMaxAI/MiniMax-H3 --include "Ref2VA/*" "*.json" --local-dir "$MODELS/MiniMax-H3"
+# 下载：download <魔搭仓库> <HF 仓库> <目标目录> <文件或 --include 参数...>
+download() {
+  local ms=$1 hf=$2 dir=$3; shift 3
+  if [[ $MODEL_SOURCE == hf ]]; then
+    hf download "$hf" "$@" --local-dir "$dir" --max-workers "$DL_WORKERS"
+  else
+    modelscope download "$ms" "$@" --local-dir "$dir" --max-workers "$DL_WORKERS"
+  fi
+}
+echo "模型下载源：$MODEL_SOURCE（可用 MODEL_SOURCE=hf 换成 Hugging Face）"
+
+echo "== 3/5 下载 MiniMax-H3 的 Ref2VA 分区（整个仓库约 500GB，只下需要的约 144GB，耗时较长）"
+download MiniMax/MiniMax-H3 MiniMaxAI/MiniMax-H3 "$MODELS/MiniMax-H3" --include "Ref2VA/*" "*.json"
 if [[ ! -d "$MODELS/MiniMax-H3/Ref2VA" ]]; then
   echo "没找到 Ref2VA 目录，仓库的目录结构可能变了。看看下载下来有什么："
   ls "$MODELS/MiniMax-H3"
@@ -59,7 +74,7 @@ fi
 
 echo "== 4/5 下载 lightx2v Ref2V 8 步加速 LoRA（约 1.4GB）"
 LORA_FILE=minimax_h3_ref2v_turbo_8step_v1.0_768p_bf16.safetensors
-hf download lightx2v/Minimax-h3-Turbo "$LORA_FILE" --local-dir "$MODELS/loras"
+download lightx2v/Minimax-h3-Turbo lightx2v/Minimax-h3-Turbo "$MODELS/loras" "$LORA_FILE"
 
 echo "== 5/5 生成启动 / 停止脚本 $DATA/start.sh、$DATA/stop.sh"
 mkdir -p "$DATA/assets" "$DATA/logs"
