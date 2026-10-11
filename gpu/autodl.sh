@@ -10,6 +10,12 @@ if [[ ${AUTO_SHUTDOWN:-0} == 1 ]]; then
   trap 'echo "== 安装脚本已结束，60 秒后自动关机"; sleep 60; shutdown' EXIT
 fi
 
+# 后台 SSH 执行时不会读 ~/.bashrc，AutoDL 镜像里 conda 的 Python 不在 PATH 上；优先用它（自带 venv）
+for d in /root/miniconda3/bin /root/anaconda3/bin /opt/conda/bin; do
+  if [[ -x $d/python3 ]]; then export PATH=$d:$PATH; break; fi
+done
+command -v python3 >/dev/null || { echo "找不到 python3，请换 AutoDL 的 PyTorch 基础镜像"; exit 1; }
+
 DATA=${DATA:-/root/autodl-tmp}                       # AutoDL 数据盘，系统盘只有 30GB，不要往那里放模型
 MODELS=$DATA/models
 # 模型下载源：modelscope（魔搭，默认）或 hf（Hugging Face）。AutoDL 上实测魔搭快得多
