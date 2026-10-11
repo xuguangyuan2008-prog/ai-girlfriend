@@ -266,7 +266,7 @@ switch (command) {
       short_edge: Number(process.env.H3_SHORT_EDGE) || 768,
       steps: Number(process.env.H3_STEPS) || 8,
       prompt:
-        `${scene.camera}。${scene.place}。${scene.look}。她看着镜头，表情自然放松，开心地微笑，` +
+        `${scene.camera}。${scene.place}。<Picture 1> 中的女生（${scene.look}）看着镜头，表情自然放松，开心地微笑，` +
         `用${scene.voice}说：“${line}”说完后继续微笑着看着镜头。只有她一个人说话，没有背景音乐。`,
     }
     upload(c, ['gpu/make_assets.py'], `${DATA}/`)

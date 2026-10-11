@@ -1,7 +1,8 @@
 """由定妆照生成其余起步素材（在 AutoDL 实例上运行，由 npm run autodl -- make-assets 调用）。
 
-首尾帧钉在 anchor.png 上，让她打个招呼；从视频里提取声音 → voice.wav，从定妆照上部裁正方形 → portrait.png。
-（服务只部署了 Ref2VA，请求至少要带一个参考条件，所以定妆照要先有。）
+先从定妆照上部裁正方形 → portrait.png；再以它为参考图 <Picture 1>、首尾帧钉在 anchor.png 上，让她打个招呼，
+从视频里提取声音 → voice.wav。
+（服务只部署了 Ref2VA：至少要一个参考条件，钉首尾帧时也必须带参考，所以先裁出 portrait 当参考图。）
 
     python make_assets.py job.json
 """
@@ -21,7 +22,17 @@ if not os.path.exists(anchor):
     print(f"缺少定妆照 {anchor}")
     sys.exit(2)
 
+
+def ff(*args):
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], check=True)
+
+
+# 胸口以上的近景，脸在画面上部：取宽度为边长的正方形，从顶部往下一点开始
+portrait = os.path.join(assets, "portrait.png")
+ff("-i", anchor, "-vf", "crop=iw:iw:0:ih*0.08", portrait)
+
 conditions = [
+    {"type": "image", "uri": portrait, "role": "reference"},
     {"type": "image", "uri": anchor, "role": "keyframe", "frame_index": 0},
     {"type": "image", "uri": anchor, "role": "keyframe", "frame_index": -1},
 ]
@@ -67,12 +78,5 @@ clip = os.path.join(assets, "make_assets.mp4")
 with open(clip, "wb") as f:
     f.write(call("GET", f"/v1/videos/{j['id']}/content"))
 
-
-def ff(*args):
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], check=True)
-
-
-# 胸口以上的近景，脸在画面上部：取宽度为边长的正方形，从顶部往下一点开始
-ff("-i", anchor, "-vf", "crop=iw:iw:0:ih*0.08", os.path.join(assets, "portrait.png"))
 ff("-i", clip, "-vn", "-ac", "1", "-ar", "24000", os.path.join(assets, "voice.wav"))
 print("素材已生成")
