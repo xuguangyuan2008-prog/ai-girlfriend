@@ -94,7 +94,7 @@ async function waitReady(c, timeoutMin = 25) {
   while (Date.now() - started < timeoutMin * 60_000) {
     const r = remote(
       c,
-      `curl -s -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models; echo; ` +
+      `curl -s -m 5 -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models; echo; ` +
         `[ -f ${DATA}/logs/serve.pid ] && kill -0 $(cat ${DATA}/logs/serve.pid) 2>/dev/null && echo running || echo stopped; tail -n 1 ${DATA}/logs/serve.log 2>/dev/null`,
       { capture: true },
     )
@@ -219,9 +219,11 @@ switch (command) {
     upload(c, ['gpu/serve.sh'], `${DATA}/`)
     remote(c, `sed -i 's/\\r$//' ${DATA}/serve.sh`)
 
-    if (remote(c, `curl -s -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models`, { capture: true }).stdout === '200') {
+    if (remote(c, `curl -s -m 5 -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models`, { capture: true }).stdout === '200') {
       console.log('✓ 服务已经在运行了')
     } else {
+      // 上次崩溃可能留下占着端口 / 显存的子进程，先清干净再启动（[s] 防止匹配到这条命令自己）
+      remote(c, `bash ${DATA}/stop.sh > /dev/null 2>&1; pkill -KILL -f '[s]glang' ; rm -f ${DATA}/logs/serve.pid; sleep 2`)
       const extra = ['OFFLOAD_TEXT', 'QUANT', 'LORA', 'MODE'].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`).join(' ')
       remote(c, `${extra} bash ${DATA}/start.sh`)
       console.log('等待服务就绪（第一次要加载权重、量化、编译，可能要 5~15 分钟）…')
@@ -236,7 +238,7 @@ switch (command) {
     // 用 H3 自己生成起步素材：文字描述 → 一段打招呼的视频 → 截第一帧当定妆照、裁脸、提取声音
     const c = loadConn()
     const out = args.find((a, i) => !a.startsWith('--') && !['--anchor', '--seed'].includes(args[i - 1])) || 'my-assets'
-    if (remote(c, `curl -s -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models`, { capture: true }).stdout !== '200') {
+    if (remote(c, `curl -s -m 5 -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models`, { capture: true }).stdout !== '200') {
       die('H3 服务没有在运行。先用有卡模式开机，再运行 npm run autodl -- start')
     }
     const anchorFile = opt('--anchor')
@@ -305,7 +307,7 @@ switch (command) {
         `echo "== 系统盘 / 数据盘"; df -h / ${DATA} | tail -2; du -sh ${DATA}/models ${DATA}/venv 2>/dev/null; ` +
         `echo "== 素材"; ls -la ${DATA}/assets 2>/dev/null | tail -n +2; ` +
         `echo "== 服务"; [ -f ${DATA}/logs/serve.pid ] && kill -0 $(cat ${DATA}/logs/serve.pid) 2>/dev/null && echo "进程运行中" || echo "未运行"; ` +
-        `code=$(curl -s -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models); [ "$code" = 200 ] && echo "接口可用" || echo "接口不可用（$code）"; ` +
+        `code=$(curl -s -m 5 -o /dev/null -w '%{http_code}' localhost:${PORT}/v1/models); [ "$code" = 200 ] && echo "接口可用" || echo "接口不可用（$code）"; ` +
         `echo "== 最近日志"; tail -n 5 ${DATA}/logs/serve.log 2>/dev/null || tail -n 5 ${DATA}/logs/setup.log 2>/dev/null`,
     )
     break
