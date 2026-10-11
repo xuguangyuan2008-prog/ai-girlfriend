@@ -56,12 +56,47 @@ if [[ ! -x $VENV/bin/pip ]]; then   # 上次没建完整（比如缺 ensurepip�
 fi
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"
-# 默认用阿里云 PyPI 镜像（AutoDL 上直连 PyPI 只有几百 KB/s），可用 PIP_INDEX_URL 换别的源
-export PIP_INDEX_URL=${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
+# 选 PyPI 镜像：各测几秒下载速度，用最快的（AutoDL 上各镜像差别很大）。PIP_INDEX_URL 可直接指定
+pick_mirror() {
+  python3 - <<'PY'
+import re, subprocess, sys, urllib.parse as p, urllib.request as u
+cands = ['https://mirrors.aliyun.com/pypi/simple/', 'https://pypi.tuna.tsinghua.edu.cn/simple/',
+         'https://mirrors.cloud.tencent.com/pypi/simple/', 'https://repo.huaweicloud.com/repository/pypi/simple/',
+         'https://mirrors.bfsu.edu.cn/pypi/web/simple/', 'https://pypi.org/simple/']
+best = (-1.0, cands[0])
+for c in cands:
+    speed = 0.0
+    try:
+        idx = c + 'mistral-common/'   # 用一个不太热门、6.6MB 的包测，更接近实际安装时的情况
+        links = [x for x in re.findall(r'href="([^"]+)"', u.urlopen(idx, timeout=8).read().decode())
+                 if 'mistral_common-1.12.0-py3-none-any.whl' in x]
+        url = p.urljoin(idx, links[0].split('#')[0])
+        out = subprocess.run(['curl', '-sL', '-o', '/dev/null', '-m', '8', '-w', '%{speed_download}', url],
+                             capture_output=True, text=True).stdout
+        speed = float(out or 0)
+    except Exception:
+        pass
+    print(f'  {speed / 1048576:6.2f} MB/s  {c}', file=sys.stderr)
+    if speed > best[0]:   # 全都连不上时用第一个（阿里云）
+        best = (speed, c)
+print(best[1])
+PY
+}
+if [[ -z ${PIP_INDEX_URL:-} ]]; then
+  echo "测试 PyPI 镜像速度："
+  PIP_INDEX_URL=$(pick_mirror)
+fi
+export PIP_INDEX_URL UV_INDEX_URL=$PIP_INDEX_URL UV_CACHE_DIR=$DATA/cache/uv UV_HTTP_TIMEOUT=300
 echo "pip 源：$PIP_INDEX_URL"
-pip install -U pip
-pip install -U "sglang[diffusion]" "huggingface_hub[cli]" modelscope
-rm -rf "$PIP_CACHE_DIR"                              # 装好了，pip 下载缓存（几 GB）留着没用
+# 用 uv 安装（SGLang 官方推荐）：并行下载，比 pip 一个一个下快得多；uv 出问题时退回 pip
+PKGS=("sglang[diffusion]" "huggingface_hub[cli]" modelscope)
+if pip install -q -U uv && uv pip install --python "$VENV/bin/python" -U "${PKGS[@]}"; then
+  :
+else
+  echo "uv 安装失败，改用 pip"
+  pip install -U "${PKGS[@]}"
+fi
+rm -rf "$PIP_CACHE_DIR" "$UV_CACHE_DIR"              # 装好了，下载缓存（几 GB）留着没用
 
 # 下载：download <魔搭仓库> <HF 仓库> <目标目录> <文件或 --include 参数...>
 download() {

@@ -59,7 +59,7 @@ npm run autodl -- setup
 
 这一步会在实例上：
 - 检查磁盘空间；
-- 安装 ffmpeg 和 SGLang；
+- 安装 ffmpeg 和 SGLang（先测几个国内 PyPI 镜像选最快的，再用 uv 并行下载）；
 - 从魔搭社区**只下载 H3 的 Ref2VA 部分**和 8 步加速 LoRA（AutoDL 上实测魔搭比 Hugging Face 镜像快得多）；
 - 生成启动和停止脚本。
 
@@ -124,6 +124,7 @@ npm run dev                                                           # 打开 h
 | `npm run autodl -- stop` | 停止服务（连同所有子进程） |
 | `npm run autodl -- start` | 启动服务 |
 | `npm run autodl -- tunnel` | 建立隧道 |
+| `npm run autodl -- setup-stop` | 停止正在进行的安装（再运行 `setup` 会接着下） |
 
 每次用完：`stop`，然后**在控制台关机**。下次用时开机 → `start` → `tunnel`。
 

@@ -2,6 +2,7 @@
 //
 //   npm run autodl -- login "ssh -p 12345 root@connect.xxx.seetacloud.com"   第一次：保存连接、配置免密登录（输一次密码）
 //   npm run autodl -- setup [--shutdown]  上传脚本，在实例上装依赖、下载模型；--shutdown 表示结束后让实例自动关机
+//   npm run autodl -- setup-stop          停止正在进行的安装（重新运行 setup 会接着下）
 //   npm run autodl -- assets ./my-assets  上传 anchor.png / portrait.png / voice.wav
 //   npm run autodl -- start               启动 H3 服务，等到就绪（需要有卡模式开机）
 //   npm run autodl -- tunnel              建立 SSH 隧道，把实例的 30000 端口映射到本机（保持运行）
@@ -150,7 +151,8 @@ switch (command) {
       const env = ['NEED_GB', 'HF_ENDPOINT', 'PIP_INDEX_URL', 'MODEL_SOURCE', 'DL_WORKERS'].filter((k) => process.env[k]).map((k) => `${k}=${process.env[k]}`)
       if (args.includes('--shutdown')) env.push('AUTO_SHUTDOWN=1')
       const extra = env.join(' ')
-      const r = remote(c, `cd ${DATA} && ${extra} nohup bash autodl.sh > logs/setup.log 2>&1 < /dev/null & echo $! | tee ${setupPid}`, { capture: true })
+      // setsid：安装自成一个进程组，setup-stop 能连同 pip / 下载进程一起停掉
+      const r = remote(c, `cd ${DATA} || exit 1; ${extra} setsid nohup bash autodl.sh > logs/setup.log 2>&1 < /dev/null & echo $! | tee ${setupPid}`, { capture: true })
       pid = r.stdout.trim()
       console.log(`安装和下载已在实例后台运行（PID ${pid}），下载约 144GB，需要较长时间。`)
       if (args.includes('--shutdown')) console.log('结束后（不论成功失败）实例会自动关机。')
@@ -160,6 +162,15 @@ switch (command) {
     remote(c, `tail -n 8 ${DATA}/logs/setup.log`, { capture: true }).stdout.includes('准备完成')
       ? console.log('\n✓ 准备完成。下一步：上传素材 npm run autodl -- assets <素材目录>，然后有卡模式开机，npm run autodl -- start')
       : console.log('\n安装没有完成，看上面的报错。修好后重新运行 npm run autodl -- setup 会断点续传。')
+    break
+  }
+
+  case 'setup-stop': {
+    const c = loadConn()
+    // KILL 而不是 TERM：不触发 --shutdown 的自动关机。旧版本启动的安装没有独立进程组，再按名字补一刀（[p] 之类的写法防止匹配到这条命令自己；各模式的字面文字也不能互相匹配）
+    remote(c, `p=$(cat ${DATA}/logs/setup.pid 2>/dev/null); [ -n "$p" ] && kill -KILL -- -$p 2>/dev/null; ` +
+      `pkill -KILL -f '^bash autodl[.]sh'; pkill -KILL -f '[p]ip install'; ` +
+      `pkill -KILL -f '[m]odelscope download'; pkill -KILL -f '[h]f download'; rm -f ${DATA}/logs/setup.pid; echo 已停止安装`)
     break
   }
 
